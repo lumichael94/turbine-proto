@@ -1,0 +1,19 @@
+[package]
+
+name = "turbine"
+version = "0.0.1"
+authors = [ "James Moak <jmoak6@gatech.edu>",
+            "Michael Lu <lumichael94@gmail.com>",
+            "Paul Park <ppark36@gatech.edu>"]
+
+[[bin]]
+name = "turbine"
+path = "src/turbo/turbo.rs"
+
+[dependencies]
+postgres = "0.10"
+rust-crypto = "0.2.31"
+secp256k1 = "0.2.4"
+rand = "0.3"
+rustc-serialize = "0.3"
+time = "0.1"
