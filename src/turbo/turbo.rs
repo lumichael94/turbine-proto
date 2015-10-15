@@ -1,7 +1,7 @@
+//  CLI for turbine
 extern crate rustc_serialize;
 extern crate docopt;
 use docopt::Docopt;
-
 
 const USAGE: &'static str = "
 Naval Fate.
