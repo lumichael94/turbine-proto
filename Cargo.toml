@@ -6,9 +6,10 @@ authors = [ "James Moak <jmoak6@gatech.edu>",
             "Michael Lu <lumichael94@gmail.com>",
             "Paul Park <ppark36@gatech.edu>"]
 
-[[bin]]
-name = "turbine"
-path = "src/turbo/turbo.rs"
+# [[bin]]
+# name = "turbine"
+# path = "src/turbo/turbo.rs"
+
 
 [dependencies]
 postgres = "0.10"

@@ -1,18 +1,23 @@
-mod database;
-
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
-extern crate time;
+extern crate chrono;
 
-use std::os
-use std::sync
+// use std::os;
+// use std::sync;
+use postgres::{Connection, SslMode};
 
-fn connect_db(){
-
+//  Connect to database.
+//  TODO: Return error message if failure to connect.
+pub fn connect_db() -> Connection{
+    let conn = Connection::connect("postgresql://postgres:api@localhost", &SslMode::None).unwrap();
+    return conn;
 }
 
-fn close_db(){
-    //Use the "finish" fn that rust-postgres provides
+//  Close database connection.
+//  TODO: Return error message if failure to close.
+//  TODO: Ignoring return type
+pub fn close_db(connection: Connection){
+    let _ = Connection::finish(connection);
 }

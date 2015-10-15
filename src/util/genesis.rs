@@ -6,11 +6,3 @@ extern crate chrono;
 
 use std::os;
 use std::sync;
-
-fn trusted_state(){
-
-}
-
-fn commit_state (){
-
-}

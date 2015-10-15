@@ -1,23 +1,21 @@
-mod node;
-
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
-extern crate time;
-mod account;
+extern crate chrono;
 
-use std::os
-use std::sync
+use std::os;
+use std::sync;
+use data::account::account;
 
-struct node {
-    ip          : String                //IPv4 or IPv5, main identifier
-    address     : [account.address]
-    public_key  : [u8]
-    status      : String
-    trusted     : bool
-    blacklisted : bool
-    descriptor  : String
+pub struct node {
+    ip          : String,               //IPv4 or IPv5, main identifier
+    address     : [u8; 30],
+    public_key  : [u8; 30],
+    status      : String,
+    trusted     : bool,
+    blacklisted : bool,
+    descriptor  : String,
 }
 
 fn add_node(){

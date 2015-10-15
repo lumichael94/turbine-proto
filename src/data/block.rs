@@ -1,28 +1,26 @@
-mod block;
-
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
 extern crate chrono;
 
-mod transaction;
+use std::os;
+use std::sync;
+use data::log::log;
+use data::sidechain::sidechain;
 
-use std::os
-use std::sync
-
-struct block {
+pub struct block {
     //  id hash of transaction decided on by trusted peers
     //  Need to compute this yourself and compare to make sure
     //  However, light clients do not need to do so
     //  TODO: Decide on hash function for determining ID
-    id              :   [u8]
-    parent_id       :   [u8]
-    chain_id        :   [chain.id]
-    time_stamp      :   chrono::DateTime    //time of commit
-    nonce           :   i64     //  cryptographic nonce
-    logs_hash       :   [u8]
-    logs            :   [transaction]
+    id              :   [u8; 30],
+    parent_id       :   [u8; 30],
+    chain_id        :   [u8; 30],
+    time_stamp      :   String,    //time of commit
+    nonce           :   i64,                //  cryptographic nonce
+    logs_hash       :   [u8; 30],
+    logs            :   [log],
 }
 
 fn init_block(){

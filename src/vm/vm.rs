@@ -2,7 +2,7 @@
 mod vm;
 
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
-extern crate time;
+extern crate chrono

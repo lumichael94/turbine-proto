@@ -1,13 +1,11 @@
-mod change_state;
-
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
 extern crate chrono;
 
-use std::os
-use std::sync
+use std::os;
+use std::sync;
 
 
 fn get_state(){

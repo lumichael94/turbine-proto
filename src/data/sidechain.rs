@@ -1,21 +1,20 @@
-mod sidechain;
-
 extern crate rand;
-extern crate rust-crypto;
-extern crate rustc-serialize;
+extern crate crypto;
+extern crate rustc_serialize;
 extern crate postgres;
-extern crate time;
+extern crate chrono;
 
-use std::os
-use std::sync
+use std::os;
+use std::sync;
+use data::log::log;
 
-struct sidechain {
-    id              :   [u8]
-    parent_id       :   [u8]
-    time_stamp      :   chrono::DateTime    //time of commit
-    nonce           :   i64     //  cryptographic nonce
-    t_list_hash     :   [u8]
-    t_list          :   [transaction]
+pub struct sidechain {
+    id              :   [u8; 30],
+    parent_id       :   [u8; 30],
+    time_stamp      :   String,    //time of commit
+    nonce           :   i64,     //  cryptographic nonce
+    t_list_hash     :   [u8; 30],
+    t_list          :   [log],
 }
 
 fn new_header_chain(){
