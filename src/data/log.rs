@@ -12,8 +12,8 @@ extern crate chrono;
 pub struct log {
     id      :   String,  //  id hash of transaction
     nonce   :   i64,     //  cryptographic nonce
-    origin  :   [u8; 30],   //  origin account address
-    target  :   [u8; 30],   //  target account address
+    origin  :   [u8; 20],   //  origin account address
+    target  :   [u8; 20],   //  target account address
     fuel    :   i64,    //  fuel of log (positive or negative fuel)
     sig     :   [u8; 30],   //  Modify with Electrum style signatures
 }
@@ -21,7 +21,7 @@ pub struct log {
 //  TODO: Implement transaction receipts. Sprint 4
 // struct log_receipt;
 
-fn new_log (){
+fn new_log (block_id: [u8; 30], log_id: [u8; 30], origin_address: [u8; 20], target_address: [u8; 20]){
 
 }
 
