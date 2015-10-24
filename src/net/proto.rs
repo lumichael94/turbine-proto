@@ -6,40 +6,6 @@ extern crate chrono;
 
 // use std::os;
 // use std::sync;
-use std::net::{TcpListener, TcpStream};
-use std::thread;
-
-// fn udp_connect(){
-//
-// }
-//
-// fn udp_disconnect(){
-//
-// }
-
-fn tcp_connect(node_address: &str) -> TcpListener{
-    // TODO: Check if node is blacklisted
-    let listener = TcpListener::bind(node_address).unwrap();
-    for stream in listener.incoming(){
-        match stream{
-            Ok(stream) => {
-                thread::spawn(move||{
-
-                });
-            }
-            Err(e) => {
-                //  Problem connecting to network
-            }
-        }
-    }
-    // TODO: Write node to database
-    return listener;
-
-}
-
-fn tcp_disconnect(listener:TcpListener){
-    drop(listener);
-}
 
 //  Not implemented for sprint 3
 // fn whisper_connect(){}
