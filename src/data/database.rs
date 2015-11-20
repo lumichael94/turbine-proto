@@ -18,6 +18,6 @@ pub fn connect_db() -> Connection{
 //  Close database connection.
 //  TODO: Return error message if failure to close.
 //  TODO: Ignoring return type
-pub fn close_db(connection: Connection){
-    let _ = Connection::finish(connection);
+pub fn close_db(conn: Connection){
+    let _ = Connection::finish(conn);
 }

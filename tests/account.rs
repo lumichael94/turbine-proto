@@ -1,17 +1,25 @@
 extern crate turbine;
 extern crate rand;
+extern crate postgres;
 
 use turbine::data::account;
+use turbine::data::database;
 use self::rand::{OsRng, Rng};
-
+use postgres::{Connection, SslMode};
 
 #[test]
-fn test_create_new_account(){
-    let mut schain_add =  rand::thread_rng().gen_iter::<u8>().take(20).collect::<Vec<u8>>();
-    // for n in &schain_add{
-    //     print!("{}", n);
-    // }
-    let string_add = std::str::from_utf8(&schain_add);
-    println!("Randomly generated address: {:?}", string_add);
-    account::create_new_account(&schain_add);
+fn test_store_account(){
+    let conn = database::connect_db();
+    account::setup_account_table(&conn);
+
+    let add = account::gen_account_address();
+    let ip: &str = "192.168.1.1";
+    let acc = account::create_new_account(&add, ip);
+
+    account::store_account(&acc, &conn);
+
+    let a = account::get_account(&acc.address, &conn);
+
+    account::drop_account_table(&conn);
+    database::close_db(conn);
 }

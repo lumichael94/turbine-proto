@@ -4,5 +4,4 @@ pub mod block;
 pub mod database;
 pub mod header_chain;
 pub mod log;
-pub mod node;
 pub mod sidechain;
