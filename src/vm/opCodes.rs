@@ -2,8 +2,15 @@ extern crate rand;
 extern crate crypto;
 extern crate rustc_serialize;
 
+pub enum opCode {
+    ADD, MUL, DIV, MOD, SUB,
+    POP, LOAD, PUSH, STOP, ERROR,
+    // STORE, STORE8, JUMP, FUEL, JUMPDEST, PC
+    // ADDRESS, GUAGE, ORIGIN,
+    // DUP, SWAP,CREATE, CALL, RETURN,
+}
 
-pub enum opCode<'a> {
+pub enum opCode_param<'a> {
 
     //Stop and Arithmetic Operations
     // STOP,
@@ -16,6 +23,7 @@ pub enum opCode<'a> {
     MOD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
     LOAD(&'a mut Vec<i32>, i32),
     STOP(&'a mut i64),
+    ERROR(&'a mut i64),
 
     //Comparison and Bitwise Logic Operations
     // LESS, GREAT, EQUAL, ISZERO, AND,
@@ -42,30 +50,43 @@ pub enum opCode<'a> {
     // CREATE, CALL, CALLCODE, RETURN, SUICIDE,
 }
 
-
-pub enum opPrice {
-    ADD, MUL, DIV, MOD, SUB,
-    POP, LOAD, STORE, STORE8, JUMP, PC, FUEL, JUMPDEST,
-    ADDRESS, GUAGE, ORIGIN,
-    PUSH, DUP, SWAP,
-    CREATE, CALL, RETURN, STOP,
-}
-
-pub fn map_to_fn(code: opCode) {
+pub fn map_to_fn(code: opCode_param) {
     match code {
-        opCode::STOP(pc)                        => stop(pc),
-        opCode::ADD(stack, memory, n)           => add(stack, memory, n),
-        opCode::SUB(stack, memory, n)           => sub(stack, memory, n),
-        opCode::MUL(stack, memory, n)           => mul(stack, memory, n),
-        opCode::DIV(stack, memory, n)           => div(stack, memory, n),
-        opCode::MOD(stack, memory, n)           => modulo(stack, memory, n),
+
+        opCode_param::ADD(stack, memory, n)      => add(stack, memory, n),
+        opCode_param::SUB(stack, memory, n)      => sub(stack, memory, n),
+        opCode_param::MUL(stack, memory, n)      => mul(stack, memory, n),
+        opCode_param::DIV(stack, memory, n)      => div(stack, memory, n),
+        opCode_param::MOD(stack, memory, n)      => modulo(stack, memory, n),
 
         //TODO: Change this when you can
-        opCode::LOAD(stack, word)          => load(stack, word),
-        opCode::PUSH(stack, memory, n)     => push(stack, memory, n),
-        opCode::POP(stack, memory, n)      => pop(stack, memory, n),
+        opCode_param::LOAD(stack, word)          => load(stack, word),
+        opCode_param::PUSH(stack, memory, n)     => push(stack, memory, n),
+        opCode_param::POP(stack, memory, n)      => pop(stack, memory, n),
+
+        opCode_param::STOP(pc)       => stop(pc),
+        opCode_param::ERROR(pc)      => error(pc),
+
     };
 }
+
+// //Number of params
+// pub fn get_param_len(code: &str) -> i32{
+//     match code {
+//         "ADD"     => return 1,
+//         "MUL"     => return 1,
+//         "DIV"     => return 1,
+//         "MOD"     => return 1,
+//         "SUB"     => return 1,
+//         "POP"     => return 0,
+//         "LOAD"    => return 1,
+//         "PUSH"    => return 1,
+//         "STOP"    => return 0,
+//         "ERROR"   => return 0,
+//         _       => return 0,
+//     };
+// }
+
 
 fn add(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
     let mut ans = memory.pop().unwrap();
@@ -136,31 +157,37 @@ fn stop(mut pc: &mut i64){
     println!("STOP");
 }
 
-pub fn map_to_fuel(code: opPrice) -> i64{
+fn error(mut pc: &mut i64){
+    *pc = -2;
+    println!("ERROR");
+}
+
+pub fn map_to_fuel(code: opCode) -> i64{
     match code{
-        opPrice::ADD => return 1,
-        opPrice::SUB => return 1,
-        opPrice::MUL => return 5,
-        opPrice::DIV => return 5,
-        opPrice::MOD => return 13,
-        opPrice::POP => return 2,
-        opPrice::LOAD => return 7,
-        opPrice::STORE => return 11,
-        opPrice::STORE8 => return 31,
-        opPrice::JUMP => return 19,
-        opPrice::PC => return 23,
-        opPrice::FUEL => return 13,
-        opPrice::JUMPDEST => return 19,
-        opPrice::ADDRESS => return 43,
-        opPrice::GUAGE => return 29,
-        opPrice::ORIGIN => return 43,
-        opPrice::PUSH => return 1,
-        opPrice::DUP => return 1,
-        opPrice::SWAP => return 1,
-        opPrice::CREATE => return 61,
-        opPrice::CALL => return 59,
-        opPrice::RETURN => return 3,
-        opPrice::STOP => return 0,
+        opCode::ADD => return 1,
+        opCode::SUB => return 1,
+        opCode::MUL => return 5,
+        opCode::DIV => return 5,
+        opCode::MOD => return 13,
+        opCode::POP => return 2,
+        opCode::LOAD => return 7,
+        // opPrice::STORE => return 11,
+        // opPrice::STORE8 => return 31,
+        // opPrice::JUMP => return 19,
+        // opPrice::PC => return 23,
+        // opPrice::FUEL => return 13,
+        // opPrice::JUMPDEST => return 19,
+        // opPrice::ADDRESS => return 43,
+        // opPrice::GUAGE => return 29,
+        // opPrice::ORIGIN => return 43,
+        opCode::PUSH => return 1,
+        // opPrice::DUP => return 1,
+        // opPrice::SWAP => return 1,
+        // opPrice::CREATE => return 61,
+        // opPrice::CALL => return 59,
+        // opPrice::RETURN => return 3,
+        opCode::STOP => return 0,
+        opCode::ERROR => return 109,
     }
 }
 
