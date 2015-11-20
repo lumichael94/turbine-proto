@@ -13,7 +13,6 @@ pub fn decoder(code: Vec<String>) {
         let coll: Vec<&str> = it.collect();
         let op = coll[0];
         let value = coll[1];
-
     }
 }
 
