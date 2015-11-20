@@ -10,7 +10,7 @@ use std::sync;
 use net::{tcp, trusted};
 use data::{account, state, database,};
 use vm::env;
-use util::{net, data};
+use util::{helper, krypto};
 
 pub fn check_state(){
 

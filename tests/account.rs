@@ -4,7 +4,6 @@ extern crate postgres;
 
 use turbine::data::account;
 use turbine::data::database;
-use self::rand::{OsRng, Rng};
 use postgres::{Connection, SslMode};
 
 #[test]
@@ -12,9 +11,13 @@ fn test_store_account(){
     let conn = database::connect_db();
     account::create_account_table(&conn);
 
-    let add = account::gen_account_address();
     let ip: &str = "192.168.1.1";
-    let acc = account::create_new_account(&add, ip);
+    let acc = account::account {    address:    "address".to_string(),
+                                    ip:         "192.168.1.1".to_string(),
+                                    trusted:    false,
+                                    log_nonce:  0 as i64,
+                                    fuel:        0 as i64,
+                                    code:       "".to_string(),};
 
     account::save_account(&acc, &conn);
 

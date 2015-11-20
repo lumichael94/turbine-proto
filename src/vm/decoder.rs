@@ -4,10 +4,11 @@ extern crate rustc_serialize;
 
 use vm::opCodes::{opCode, map_to_fuel};
 use vm::opCodes::opCode::*;
+use util::helper;
 
-pub fn decode(code: Vec<&str>) -> (Vec<opCode>, Vec<Vec<&str>>, Vec<i64>){
+pub fn decode(code: &Vec<String>) -> (Vec<opCode>, Vec<Vec<String>>, Vec<i64>){
     let mut instr_vec:  Vec<opCode>     = Vec::new();
-    let mut param_vec:  Vec<Vec<&str>>  = Vec::new();
+    let mut param_vec:  Vec<Vec<String>>  = Vec::new();
     let mut fuel_vec:   Vec<i64>        = Vec::new();
 
     for instr in code {
@@ -29,7 +30,7 @@ pub fn decode(code: Vec<&str>) -> (Vec<opCode>, Vec<Vec<&str>>, Vec<i64>){
 
         //Push values in
         instr_vec.push(op);
-        param_vec.push(param);
+        param_vec.push(helper::vec_slice_to_string(&param));
         fuel_vec.push(fuel);
     }
     return (instr_vec, param_vec, fuel_vec);
@@ -85,13 +86,15 @@ mod test {
   use super::*;
   use vm::opCodes::{opCode, map_to_fuel};
   use vm::opCodes::opCode::*;
+  use util::helper::vec_slice_to_string;
 
   #[test]
   fn test_decoder() {
     println!("decoder test");
-    let code: Vec<&str> = vec!["LOAD 1","LOAD 2", "POP 2", "ADD 2", "PUSH 1", "STOP"];
-    let instr_set: (Vec<opCode>, Vec<Vec<&str>>, Vec<i64>) = decode(code);
-    let args: Vec<Vec<&str>> = instr_set.1;
+    let code_arr: Vec<&str> = vec!["LOAD 1","LOAD 2", "POP 2", "ADD 2", "PUSH 1", "STOP"];
+    let code: Vec<String> = vec_slice_to_string(&code_arr);
+    let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
+    let args: Vec<Vec<String>> = instr_set.1;
     // let args: Vec<i64> = instr_set.2;
     // println!("Instruction set is: {:?}", args);
   }

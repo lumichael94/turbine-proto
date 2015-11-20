@@ -1,3 +1,3 @@
-pub mod data;
+pub mod helper;
 pub mod genesis;
-pub mod net;
+pub mod krypto;

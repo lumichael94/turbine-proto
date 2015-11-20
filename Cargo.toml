@@ -12,10 +12,9 @@ authors = [ "James Moak <jmoak6@gatech.edu>",
 
 
 [dependencies]
-postgres = "0.10"
-rand = "0.3"
-rust-crypto = "0.2.31"
-secp256k1 = "0.2.4"
-rustc-serialize = "0.3"
-chrono = "0.2"
-docopt = "0.6"
+postgres = "0.10.1"
+rand = "0.3.11"
+rust-crypto = "0.2.34"
+secp256k1 = "0.5.1"
+rustc-serialize = "0.3.16"
+chrono = "0.2.16"

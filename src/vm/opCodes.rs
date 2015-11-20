@@ -2,6 +2,8 @@ extern crate rand;
 extern crate crypto;
 extern crate rustc_serialize;
 
+use vm::env::env_state;
+
 pub enum opCode {
     ADD, MUL, DIV, MOD, SUB,
     POP, LOAD, PUSH, STOP, ERROR,
@@ -14,16 +16,17 @@ pub enum opCode_param<'a> {
 
     //Stop and Arithmetic Operations
     // STOP,
-    ADD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    SUB(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    POP(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    PUSH(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    MUL(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    DIV(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    MOD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    LOAD(&'a mut Vec<i32>, i32),
-    STOP(&'a mut i64),
-    ERROR(&'a mut i64),
+    // ADD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
+    ADD(&'a mut env_state, i32),
+    SUB(&'a mut env_state, i32),
+    POP(&'a mut env_state, i32),
+    PUSH(&'a mut env_state, i32),
+    MUL(&'a mut env_state, i32),
+    DIV(&'a mut env_state, i32),
+    MOD(&'a mut env_state, i32),
+    LOAD(&'a mut env_state, i32),
+    STOP(&'a mut env_state),
+    ERROR(&'a mut env_state),
 
     //Comparison and Bitwise Logic Operations
     // LESS, GREAT, EQUAL, ISZERO, AND,
@@ -53,19 +56,20 @@ pub enum opCode_param<'a> {
 pub fn map_to_fn(code: opCode_param) {
     match code {
 
-        opCode_param::ADD(stack, memory, n)      => add(stack, memory, n),
-        opCode_param::SUB(stack, memory, n)      => sub(stack, memory, n),
-        opCode_param::MUL(stack, memory, n)      => mul(stack, memory, n),
-        opCode_param::DIV(stack, memory, n)      => div(stack, memory, n),
-        opCode_param::MOD(stack, memory, n)      => modulo(stack, memory, n),
+        // opCode_param::ADD(stack, memory, n)      => add(stack, memory, n),
+        opCode_param::ADD(env, n)                => add(env, n),
+        opCode_param::SUB(env, n)      => sub(env, n),
+        opCode_param::MUL(env, n)      => mul(env, n),
+        opCode_param::DIV(env, n)      => div(env, n),
+        opCode_param::MOD(env, n)      => modulo(env, n),
 
         //TODO: Change this when you can
-        opCode_param::LOAD(stack, word)          => load(stack, word),
-        opCode_param::PUSH(stack, memory, n)     => push(stack, memory, n),
-        opCode_param::POP(stack, memory, n)      => pop(stack, memory, n),
+        opCode_param::LOAD(env, word)          => load(env, word),
+        opCode_param::PUSH(env, n)     => push(env, n),
+        opCode_param::POP(env, n)      => pop(env, n),
 
-        opCode_param::STOP(pc)       => stop(pc),
-        opCode_param::ERROR(pc)      => error(pc),
+        opCode_param::STOP(env)       => stop(env),
+        opCode_param::ERROR(env)      => error(env),
 
     };
 }
@@ -88,78 +92,87 @@ pub fn map_to_fn(code: opCode_param) {
 // }
 
 
-fn add(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-    let mut ans = memory.pop().unwrap();
+// fn add(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
+//     let mut ans = memory.pop().unwrap();
+//     for i in 0..(n-1){
+//         ans += memory.pop().unwrap();
+//     }
+//     memory.push(ans);
+//     println!("ADD: {}", memory.last().unwrap());
+// }
+
+fn add(mut env: &mut env_state, n: i32){
+    let mut ans = env.memory.pop().unwrap();
     for i in 0..(n-1){
-        ans += memory.pop().unwrap();
+        ans += env.memory.pop().unwrap();
     }
-    memory.push(ans);
-    println!("ADD: {}", memory.last().unwrap());
+    env.memory.push(ans);
+    // println!("ADD: {}", env.memory.last().unwrap());
 }
 
-fn sub(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-    let mut ans = memory.pop().unwrap();
+fn sub(mut env: &mut env_state, n: i32){
+    let mut ans = env.memory.pop().unwrap();
     for i in 0..(n-1){
-        ans -= memory.pop().unwrap();
+        ans -= env.memory.pop().unwrap();
     }
-    memory.push(ans);
-    println!("SUB: {}", memory.last().unwrap());
+    env.memory.push(ans);
+    // println!("SUB: {}", env.memory.last().unwrap());
 }
 
-fn mul(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-    let mut ans = memory.pop().unwrap();
+fn mul(mut env: &mut env_state, n: i32){
+    let mut ans = env.memory.pop().unwrap();
     for i in 0..(n-1){
-        ans *= memory.pop().unwrap();
+        ans *= env.memory.pop().unwrap();
     }
-    memory.push(ans);
-    println!("MUL: {}", memory.last().unwrap());
+    env.memory.push(ans);
+    // println!("MUL: {}", env.memory.last().unwrap());
 }
 
-fn div(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-    let mut ans = memory.pop().unwrap();
+fn div(mut env: &mut env_state, n: i32){
+    let mut ans = env.memory.pop().unwrap();
     for i in 0..(n-1){
-        ans /= memory.pop().unwrap();
+        ans /= env.memory.pop().unwrap();
     }
-    memory.push(ans);
-    println!("DIV: {}", memory.last().unwrap());
+    env.memory.push(ans);
+    // println!("DIV: {}", env.memory.last().unwrap());
 }
 
-fn modulo(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-    let mut ans = memory.pop().unwrap();
+fn modulo(mut env: &mut env_state, n: i32){
+    let mut ans = env.memory.pop().unwrap();
     for i in 0..(n-1){
-        ans %= memory.pop().unwrap();
+        ans %= env.memory.pop().unwrap();
     }
-    memory.push(ans);
-    println!("MOD: {}", memory.last().unwrap());
+    env.memory.push(ans);
+    // println!("MOD: {}", env.memory.last().unwrap());
 }
 
-fn pop(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
+fn pop(mut env: &mut env_state, n: i32){
     for i in 0..n{
-        memory.push(stack.pop().unwrap());
+        env.memory.push(env.stack.pop().unwrap());
     }
-    println!("POP")
+    // println!("POP")
 }
 
-fn push(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
+fn push(mut env: &mut env_state, n: i32){
     for i in 0..n{
-        stack.push(memory.pop().unwrap());
+        env.stack.push(env.memory.pop().unwrap());
     }
-    println!("PUSH")
+    // println!("PUSH")
 }
 
-fn load(mut stack: &mut Vec<i32>, word: i32){
-    stack.push(word);
-    println!("LOAD")
+fn load(mut env: &mut env_state, word: i32){
+    env.stack.push(word);
+    // println!("LOAD")
 }
 
-fn stop(mut pc: &mut i64){
-    *pc = -1;
-    println!("STOP");
+fn stop(mut env: &mut env_state){
+    env.pc = -1;
+    // println!("STOP");
 }
 
-fn error(mut pc: &mut i64){
-    *pc = -2;
-    println!("ERROR");
+fn error(mut env: &mut env_state){
+    env.pc = -2;
+    // println!("ERROR");
 }
 
 pub fn map_to_fuel(code: opCode) -> i64{

@@ -14,7 +14,7 @@ use data::log::log;
 pub struct state {
     nonce           :   i64,
     hash            :   String,
-    prev_block      :   String, //Hash of previous block
+    prev_block      :   String,     //Hash of previous block
     time_stamp      :   String,
     log_hash        :   String,
     proof_hash      :   String,
