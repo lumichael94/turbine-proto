@@ -57,7 +57,7 @@ pub fn map_to_fn(code: opCode_param) {
     match code {
 
         // opCode_param::ADD(stack, memory, n)      => add(stack, memory, n),
-        opCode_param::ADD(env, n)                => add(env, n),
+        opCode_param::ADD(env, n)      => add(env, n),
         opCode_param::SUB(env, n)      => sub(env, n),
         opCode_param::MUL(env, n)      => mul(env, n),
         opCode_param::DIV(env, n)      => div(env, n),
@@ -102,67 +102,110 @@ pub fn map_to_fn(code: opCode_param) {
 // }
 
 fn add(mut env: &mut env_state, n: i32){
-    let mut ans = env.memory.pop().unwrap();
-    for i in 0..(n-1){
-        ans += env.memory.pop().unwrap();
+    if env.fuel > map_to_fuel(opCode::SUB){
+        let mut ans = env.memory.pop().unwrap();
+        env.fuel -= map_to_fuel(opCode::ADD);
+        for i in 0..(n-1){
+            ans += env.memory.pop().unwrap();
+        }
+        env.memory.push(ans);
+        // println!("ADD: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
     }
-    env.memory.push(ans);
-    // println!("ADD: {}", env.memory.last().unwrap());
 }
 
 fn sub(mut env: &mut env_state, n: i32){
-    let mut ans = env.memory.pop().unwrap();
-    for i in 0..(n-1){
-        ans -= env.memory.pop().unwrap();
+    if env.fuel > map_to_fuel(opCode::SUB){
+        env.fuel -= map_to_fuel(opCode::SUB);
+        let mut ans = env.memory.pop().unwrap();
+        for i in 0..(n-1){
+            ans -= env.memory.pop().unwrap();
+        }
+        env.memory.push(ans);
+        // println!("SUB: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
     }
-    env.memory.push(ans);
-    // println!("SUB: {}", env.memory.last().unwrap());
+
+
 }
 
 fn mul(mut env: &mut env_state, n: i32){
-    let mut ans = env.memory.pop().unwrap();
-    for i in 0..(n-1){
-        ans *= env.memory.pop().unwrap();
+    if env.fuel > map_to_fuel(opCode::MUL){
+        env.fuel -= map_to_fuel(opCode::MUL);
+        let mut ans = env.memory.pop().unwrap();
+        for i in 0..(n-1){
+            ans *= env.memory.pop().unwrap();
+        }
+        env.memory.push(ans);
+        // println!("MUL: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
     }
-    env.memory.push(ans);
-    // println!("MUL: {}", env.memory.last().unwrap());
+
 }
 
 fn div(mut env: &mut env_state, n: i32){
-    let mut ans = env.memory.pop().unwrap();
-    for i in 0..(n-1){
-        ans /= env.memory.pop().unwrap();
+    if env.fuel > map_to_fuel(opCode::DIV){
+        env.fuel -= map_to_fuel(opCode::DIV);
+        let mut ans = env.memory.pop().unwrap();
+        for i in 0..(n-1){
+            ans /= env.memory.pop().unwrap();
+        }
+        env.memory.push(ans);
+        // println!("DIV: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
     }
-    env.memory.push(ans);
-    // println!("DIV: {}", env.memory.last().unwrap());
 }
 
 fn modulo(mut env: &mut env_state, n: i32){
-    let mut ans = env.memory.pop().unwrap();
-    for i in 0..(n-1){
-        ans %= env.memory.pop().unwrap();
+    if env.fuel > map_to_fuel(opCode::MOD){
+        env.fuel -= map_to_fuel(opCode::MOD);
+        let mut ans = env.memory.pop().unwrap();
+        for i in 0..(n-1){
+            ans %= env.memory.pop().unwrap();
+        }
+        env.memory.push(ans);
+        // println!("MOD: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
     }
-    env.memory.push(ans);
-    // println!("MOD: {}", env.memory.last().unwrap());
 }
 
 fn pop(mut env: &mut env_state, n: i32){
-    for i in 0..n{
-        env.memory.push(env.stack.pop().unwrap());
+    if env.fuel > (map_to_fuel(opCode::POP) * (n as i64)){
+        env.fuel -= map_to_fuel(opCode::POP);
+        for i in 0..n{
+            env.memory.push(env.stack.pop().unwrap());
+        }
+    } else {
+        env.pc = -2;
     }
     // println!("POP")
 }
 
 fn push(mut env: &mut env_state, n: i32){
-    for i in 0..n{
-        env.stack.push(env.memory.pop().unwrap());
+    if env.fuel > (map_to_fuel(opCode::PUSH) * (n as i64)){
+        env.fuel -= map_to_fuel(opCode::PUSH);
+        for i in 0..n{
+            env.stack.push(env.memory.pop().unwrap());
+        }
+        // println!("PUSH")
+    } else {
+        env.pc = -2;
     }
-    // println!("PUSH")
 }
 
 fn load(mut env: &mut env_state, word: i32){
-    env.stack.push(word);
-    // println!("LOAD")
+    if env.fuel > map_to_fuel(opCode::MOD){
+        env.fuel -= map_to_fuel(opCode::MOD);
+        env.stack.push(word);
+        // println!("LOAD")
+    } else {
+        env.pc = -2;
+    }
 }
 
 fn stop(mut env: &mut env_state){
@@ -184,6 +227,7 @@ pub fn map_to_fuel(code: opCode) -> i64{
         opCode::MOD => return 13,
         opCode::POP => return 2,
         opCode::LOAD => return 7,
+        // opCode::SEND => return 10,
         // opPrice::STORE => return 11,
         // opPrice::STORE8 => return 31,
         // opPrice::JUMP => return 19,
