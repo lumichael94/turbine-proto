@@ -1,7 +1,6 @@
 #![allow(non_camel_case_types)]
 pub mod account;
-pub mod block;
+pub mod state;
 pub mod database;
-pub mod header_chain;
+pub mod chain;
 pub mod log;
-pub mod sidechain;

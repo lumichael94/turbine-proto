@@ -10,13 +10,13 @@ use postgres::{Connection, SslMode};
 #[test]
 fn test_store_account(){
     let conn = database::connect_db();
-    account::setup_account_table(&conn);
+    account::create_account_table(&conn);
 
     let add = account::gen_account_address();
     let ip: &str = "192.168.1.1";
     let acc = account::create_new_account(&add, ip);
 
-    account::store_account(&acc, &conn);
+    account::save_account(&acc, &conn);
 
     let a = account::get_account(&acc.address, &conn);
 

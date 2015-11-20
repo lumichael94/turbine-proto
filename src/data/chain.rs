@@ -7,9 +7,7 @@ extern crate chrono;
 use std::os;
 use std::sync;
 
-use data::sidechain::sidechain;
-
-pub struct Hchain {
+pub struct chain {
     id              :   [u8; 30],
     time_stamp      :   String,    //  time of last block commit
     nonce           :   i64,                 //  latest block

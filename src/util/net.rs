@@ -9,23 +9,22 @@ use std::os;
 use std::sync;
 
 //  Number of nodes on a chain
-fn chain_node_count(){
+pub fn node_count(){
 
 }
 
-fn chain_block_count(){
+pub fn chain_block_count(){
 
 }
 
-fn chain_average_latency(){
+pub fn chain_average_latency(){
 
 }
 
-fn ping_node(){
+pub fn ping_node(){
 
 }
 
-//  Latency of a node
-fn node_latency(){
+pub fn node_latency(){
 
 }

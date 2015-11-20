@@ -19,7 +19,6 @@ pub struct env_state {
 // }
 
 pub fn execute_code(mut state: &mut env_state, instr_set: &(Vec<opCode>, Vec<Vec<&str>>, Vec<i64>)){
-
     loop {
 
         let ref instr: opCode = (instr_set.0)[state.pc as usize];
@@ -40,13 +39,12 @@ pub fn execute_code(mut state: &mut env_state, instr_set: &(Vec<opCode>, Vec<Vec
             break;
         }
 
-        //Cleanup
         state.pc+=1;
     }
 }
 
 pub fn execute_instr(instr: &opCode, param: &Vec<&str>, mut state: &mut env_state){
-    // map_to_fn();
+
     match instr {
         &ADD     => {
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
@@ -128,7 +126,7 @@ mod test {
 
   #[test]
   fn test_execute_code() {
-    println!("\n\n\n\n\n\nenv test 2");
+    println!("\n\n\n\n\n\nvm test 2");
     let mut env = env_state{stack: Vec::new(), pc: 0, memory: Vec::new(),};
     let code: Vec<&str> = vec!["LOAD 1","LOAD 2", "POP 2", "ADD 2", "PUSH 1", "STOP"];
     let instr_set: (Vec<opCode>, Vec<Vec<&str>>, Vec<i64>) = decode(code);

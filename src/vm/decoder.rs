@@ -6,9 +6,9 @@ use vm::opCodes::{opCode, map_to_fuel};
 use vm::opCodes::opCode::*;
 
 pub fn decode(code: Vec<&str>) -> (Vec<opCode>, Vec<Vec<&str>>, Vec<i64>){
-    let mut instr_vec:  Vec<opCode> = Vec::new();
-    let mut param_vec:  Vec<Vec<&str>> = Vec::new();
-    let mut fuel_vec:   Vec<i64>    = Vec::new();
+    let mut instr_vec:  Vec<opCode>     = Vec::new();
+    let mut param_vec:  Vec<Vec<&str>>  = Vec::new();
+    let mut fuel_vec:   Vec<i64>        = Vec::new();
 
     for instr in code {
         let it = instr.split(" ");

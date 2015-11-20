@@ -6,6 +6,7 @@ use std::time::Duration;
 use std::io::Read;
 use std::io::Write;
 
+use net::proto;
 
 pub fn listen(listen_addr: net::SocketAddr) {
 	let listener = net::TcpListener::bind(listen_addr).unwrap();
@@ -76,6 +77,7 @@ fn send_info() -> [u8; 4]{
 	let mut test_buffer: [u8; 4] = [1; 4]; //Change in the future
 	return test_buffer;
 }
+
 
 // #[cfg(test)]
 // mod test {
