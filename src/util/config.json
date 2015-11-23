@@ -1,0 +1,16 @@
+{
+  "local": {
+    "accounts": ["address1"],
+    "ip": "127.0.0.1:8888",
+    "public_key": "",
+    "private_key": "",
+  },
+  "peers":{
+    "accounts": ["address1", "address2"],
+    "ip": ["127.0.0.1:8888"],
+  },
+  "trusted": {
+    "accounts": ["address3"],
+    "ip": ["127.0.0.1:8888"],
+  },
+}

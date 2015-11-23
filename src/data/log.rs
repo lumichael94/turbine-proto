@@ -89,3 +89,34 @@ pub fn create_log_table(conn: &Connection){
 pub fn drop_log_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS log", &[]).unwrap();
 }
+// #[cfg(test)]
+// mod test {
+//     extern crate postgres;
+//     use data::database;
+//     use postgres::{Connection, SslMode};
+//     use super::*;
+//
+//     #[test]
+//     fn test_store_log(){
+//         let conn = database::connect_db();
+//         create_log_table(&conn);
+//
+//         let l = log{    hash:       "hash".to_string(),
+//                         block:      "block".to_string(),
+//                         nonce:      872635,
+//                         origin:     "origin".to_string(),
+//                         target:     "target".to_string(),
+//                         fuel:       567890,
+//                         sig:        "signature".to_string(),
+//                         proof:      "proof".to_string(),};
+//
+//         save_log(&l, &conn);
+//
+//         let retrieved_log: log = get_log(&l.hash, &conn);
+//         println!("The retrieved log hash: {:?}", retrieved_log.hash);
+//
+//         drop_log_table(&conn);
+//         database::close_db(conn);
+//     }
+//
+// }

@@ -7,7 +7,7 @@ extern crate chrono;
 use std::os;
 use std::sync;
 
-use net::{tcp, trusted};
+use network::server;
 use data::{account, state, database,};
 use vm::env;
 use util::{helper, krypto};

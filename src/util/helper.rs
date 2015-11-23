@@ -6,6 +6,13 @@ extern crate chrono;
 
 use std::os;
 use std::sync;
+use rustc_serialize::Encodable;
+use rustc_serialize::json::{self, Json, Encoder};
+// use rustc_serialize::json::Json
+use std::fs::File;
+use std::io::Read;
+use data::account;
+use postgres::{Connection, SslMode};
 
 // Please don't judge me for this. I'm tired.
 pub fn format_code(text: &str) -> Vec<String>{
@@ -21,24 +28,4 @@ pub fn vec_slice_to_string(v: &Vec<&str>) -> Vec<String>{
         vec.push(x.to_string());
     }
     return vec;
-}
-
-fn chain_count(){
-
-}
-
-fn block_fuel(){
-
-}
-
-pub fn node_count(){
-
-}
-
-pub fn ping_node(){
-
-}
-
-pub fn node_latency(){
-
 }

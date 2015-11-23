@@ -81,21 +81,21 @@ pub fn map_to_opFuel(instr: &str) -> i64 {
     }
 }
 
-#[cfg(test)]
-mod test {
-  use super::*;
-  use vm::opCodes::{opCode, map_to_fuel};
-  use vm::opCodes::opCode::*;
-  use util::helper::vec_slice_to_string;
-
-  #[test]
-  fn test_decoder() {
-    println!("decoder test");
-    let code_arr: Vec<&str> = vec!["LOAD 1","LOAD 2", "POP 2", "ADD 2", "PUSH 1", "STOP"];
-    let code: Vec<String> = vec_slice_to_string(&code_arr);
-    let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
-    let args: Vec<Vec<String>> = instr_set.1;
-    // let args: Vec<i64> = instr_set.2;
-    // println!("Instruction set is: {:?}", args);
-  }
-}
+// #[cfg(test)]
+// mod test {
+//   use super::*;
+//   use vm::opCodes::{opCode, map_to_fuel};
+//   use vm::opCodes::opCode::*;
+//   use util::helper::vec_slice_to_string;
+//
+//   #[test]
+//   fn test_decoder() {
+//     println!("decoder test");
+//     let code_arr: Vec<&str> = vec!["LOAD 1","LOAD 2", "POP 2", "ADD 2", "PUSH 1", "STOP"];
+//     let code: Vec<String> = vec_slice_to_string(&code_arr);
+//     let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
+//     let args: Vec<Vec<String>> = instr_set.1;
+//     // let args: Vec<i64> = instr_set.2;
+//     // println!("Instruction set is: {:?}", args);
+//   }
+// }

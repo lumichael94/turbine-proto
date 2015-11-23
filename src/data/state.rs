@@ -79,34 +79,33 @@ pub fn drop_state_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS state", &[]).unwrap();
 }
 
-// Tests
-#[cfg(test)]
-mod test {
-  use std::net;
-  use std::thread;
-  use super::*;
-  use postgres::{Connection, SslMode};
-  use data::database;
-
-
-  #[test]
-  fn test_state() {
-    println!("State test");
-    let conn = database::connect_db();
-    create_state_table(&conn);
-
-    let s: state = state{   nonce:      123987,
-                            hash:       "hash".to_string(),
-                            prev_block: "prev hash".to_string(),
-                            time_stamp: "timestamp".to_string(),
-                            log_hash:   "log hash".to_string(),
-                            proof_hash: "proof hash".to_string(),
-                            fuel_exp:   15208,};
-
-    save_state(&s, &conn);
-    let retrieved_s = get_state(&s.hash, &conn);
-    println!("State hash is: {:?}", retrieved_s.hash);
-    // drop_state_table(&conn);
-    database::close_db(conn);
-  }
-}
+// // Tests
+// #[cfg(test)]
+// mod test {
+//   use std::net;
+//   use std::thread;
+//   use super::*;
+//   use postgres::{Connection, SslMode};
+//   use data::database;
+//
+//   #[test]
+//   fn test_state() {
+//     println!("State test");
+//     let conn = database::connect_db();
+//     create_state_table(&conn);
+//
+//     let s: state = state{   nonce:      123987,
+//                             hash:       "hash".to_string(),
+//                             prev_block: "prev hash".to_string(),
+//                             time_stamp: "timestamp".to_string(),
+//                             log_hash:   "log hash".to_string(),
+//                             proof_hash: "proof hash".to_string(),
+//                             fuel_exp:   15208,};
+//
+//     save_state(&s, &conn);
+//     let retrieved_s = get_state(&s.hash, &conn);
+//     println!("State hash is: {:?}", retrieved_s.hash);
+//     // drop_state_table(&conn);
+//     database::close_db(conn);
+//   }
+// }

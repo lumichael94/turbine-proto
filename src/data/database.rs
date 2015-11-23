@@ -6,6 +6,7 @@ extern crate chrono;
 
 // use std::os;
 // use std::sync;
+use super::*;
 use postgres::{Connection, SslMode};
 
 //  Connect to database.
@@ -18,3 +19,22 @@ pub fn connect_db() -> Connection{
 pub fn close_db(conn: Connection){
     let _ = Connection::finish(conn);
 }
+// 
+// #[cfg(test)]
+// mod test {
+//     extern crate postgres;
+//
+//     use super::*;
+//     use postgres::{Connection, SslMode};
+//
+//     #[test]
+//     fn test_connect_db(){
+//         connect_db();
+//     }
+//
+//     #[test]
+//     fn test_close_db(){
+//         let conn = connect_db();
+//         close_db(conn);
+//     }
+// }

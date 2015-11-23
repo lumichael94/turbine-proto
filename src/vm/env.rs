@@ -2,6 +2,7 @@ extern crate rand;
 extern crate crypto;
 extern crate rustc_serialize;
 extern crate postgres;
+extern crate secp256k1;
 
 use vm::opCodes::{opCode, opCode_param, map_to_fuel, map_to_fn};
 use vm::opCodes::opCode::*;
@@ -9,16 +10,18 @@ use vm::decoder::{decode, map_to_string};
 use data::log::log;
 use data::account::account;
 use util::{krypto, helper};
+use self::secp256k1::*;
+use self::secp256k1::key::*;
 
 pub struct env_state {
-    pub origin      : String,
-    pub target      : String,
+    pub env_acc     : account,
+    pub env_log     : log,
     pub stack       : Vec<i32>,
     pub pc          : i64,
     pub memory      : Vec<i32>,
     pub code_hash   : String,
-    pub fuel        : i64,
-    pub code        : Vec<String>,
+    // pub fuel        : i64,
+    // pub code        : Vec<String>,
 }
 
 //TODO: Implement
@@ -108,45 +111,56 @@ pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut state: &mut env_st
 }
 
 pub fn new_proof(env: &mut env_state) -> String{
-    let a = krypto::string_hash(&env.code_hash, &env.origin);
-    return krypto::string_hash(&a, &(env.fuel).to_string());
+    let a = krypto::string_hash(&env.code_hash, &env.env_acc.address);
+    return krypto::string_hash(&a, &(env.env_log.fuel).to_string());
 }
 
-pub fn env_from_account(acc: &account) -> env_state{
-    env_state{  origin:     (*acc.address).to_string(),
-                target:     "".to_string(),
+pub fn new_env(acc: account, l: log) -> env_state{
+    env_state{  env_acc:    acc,
+                env_log:    l,
                 stack:      Vec::new(),
                 pc:         0,
                 memory:     Vec::new(),
                 code_hash:  "".to_string(),
-                fuel:       acc.fuel,
-                code:       helper::format_code(&acc.address),}
+            }
 }
 
 pub fn log_from_env(mut env: &mut env_state) -> log{
+    let l_block:    String = (*env.env_acc.block).to_string();
+    let l_nonce:    i64 = env.env_acc.log_nonce;
+    let l_origin:   String = (*env.env_log.hash).to_string();
+    let l_target:   String = (*env.env_log.target).to_string();
+    let l_fuel:     i64 = (env.env_log.fuel);
+    let l_proof:    String = new_proof(env);
 
-    log{    hash:       "hash".to_string(),
-            block:      "block".to_string(),
-            nonce:      872635,
-            origin:     "origin".to_string(),
-            target:     "target".to_string(),
-            fuel:       env.fuel,
-            sig:        "signature".to_string(),
-            proof:      new_proof(env),
+    let mut a: String = krypto::string_int_hash(&l_block, &l_nonce);
+    a = krypto::string_hash(&a, &l_origin);
+    a = krypto::string_hash(&a, &l_target);
+    a = krypto::string_int_hash(&a, &l_fuel);
+    a = krypto::string_hash(&a, &l_proof);
+
+    log{    hash:       a.to_string(),
+            block:      l_block,
+            nonce:      l_nonce,
+            origin:     l_origin,
+            target:     l_target,
+            fuel:       l_fuel,
+            sig:        "".to_string(),
+            proof:      l_proof,
         }
 }
 
-//Both tests works. Uncomment and edit if necessary.
+//Both tests work. Uncomment and edit if necessary.
 
-#[cfg(test)]
-mod test {
-  use super::*;
-  use vm::opCodes::{opCode, opCode_param, map_to_fn};
-  use vm::opCodes::opCode::*;
-  use vm::decoder::decode;
-  use data::log;
-  use data::account;
-  use util::helper::format_code;
+// #[cfg(test)]
+// mod test {
+//   use super::*;
+//   use vm::opCodes::{opCode, opCode_param, map_to_fn};
+//   use vm::opCodes::opCode::*;
+//   use vm::decoder::decode;
+//   use data::log;
+//   use data::account;
+//   use util::helper::format_code;
 
 
   // #[test]
@@ -177,31 +191,44 @@ mod test {
   //   map_to_fn(opCode_param::STOP(&mut env.pc));
   //   println!("This is the program counter: {:?}\n\n", env.pc);
   // }
-
-  #[test]
-  fn test_execute_code() {
-    println!("\n\n\n\n\n\nvm test 2");
-    let code_text: String = "LOAD 1,LOAD 2,POP 2,ADD 2,PUSH 1,STOP".to_string();
-    let acc = account::account {    address:    "my address".to_string(),
-                                    ip:         "192.168.1.1".to_string(),
-                                    trusted:    false,
-                                    log_nonce:  2,
-                                    fuel:       500,
-                                    code:       code_text,};
-
-    let mut env = env_from_account(&acc);
-    let code: Vec<String> = format_code(&acc.code);
-    let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
-    let l: log::log = execute_code(&mut env, &instr_set);
-
-    let hash: String = env.code_hash;
-    println!("\n\n\nCode hash: {:?}", hash);
-    println!("Stack: {:?}", env.stack);
-    println!("Memory: {:?}", env.memory);
-    println!("PC: {:?}", env.pc);
-    println!("Origin: {:?}", l.origin);
-    println!("Fuel: {:?}", l.fuel);
-    println!("Proof: {:?}\n\n\n", l.proof);
-
-  }
-}
+//
+//   #[test]
+//   fn test_execute_code() {
+//     println!("\n\n\n\n\n\nvm test 2");
+//     let code_text: String = "LOAD 1,LOAD 2,POP 2,ADD 2,PUSH 1,STOP".to_string();
+//
+//     let acc = account::account {    address:    "my address".to_string(),
+//                                         ip:         "192.168.1.1".to_string(),
+//                                         trusted:    false,
+//                                         log_nonce:  2,
+//                                         fuel:       500,
+//                                         code:       code_text,
+//                                         block:      "block address".to_string(),
+//                                         public_key: "public_key".to_string()
+//                                 };
+//
+//     let l = log::log{   hash:       "hash".to_string(),
+//                         block:      "block".to_string(),
+//                         nonce:      872635,
+//                         origin:     "origin".to_string(),
+//                         target:     "target".to_string(),
+//                         fuel:       567890,
+//                         sig:        "signature".to_string(),
+//                         proof:      "".to_string(),};
+//
+//     let mut env = new_env(acc, l);
+//     let code: Vec<String> = format_code(&env.env_acc.code);
+//     let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
+//     let l: log::log = execute_code(&mut env, &instr_set);
+//
+//     let hash: String = env.code_hash;
+//     println!("\n\n\nCode hash: {:?}", hash);
+//     println!("Stack: {:?}", env.stack);
+//     println!("Memory: {:?}", env.memory);
+//     println!("PC: {:?}", env.pc);
+//     println!("Origin: {:?}", l.origin);
+//     println!("Fuel: {:?}", l.fuel);
+//     println!("Proof: {:?}\n\n\n", l.proof);
+//
+//   }
+// }
