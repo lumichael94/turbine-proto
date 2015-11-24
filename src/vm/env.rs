@@ -13,15 +13,13 @@ use util::{krypto, helper};
 use self::secp256k1::*;
 use self::secp256k1::key::*;
 
-pub struct env_state {
+pub struct env {
     pub env_acc     : account,
     pub env_log     : log,
     pub stack       : Vec<i32>,
     pub pc          : i64,
     pub memory      : Vec<i32>,
     pub code_hash   : String,
-    // pub fuel        : i64,
-    // pub code        : Vec<String>,
 }
 
 //TODO: Implement
@@ -29,109 +27,121 @@ pub struct env_state {
 //
 // }
 
-pub fn execute_code(mut state: &mut env_state,
+pub fn execute_code(mut e: &mut env,
     instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> log{
     loop {
-        let ref instr: opCode       = (instr_set.0)[state.pc as usize];
-        let ref param: Vec<String>    = (instr_set.1)[state.pc as usize];
-        let ref fuel_cost: i64      = (instr_set.2)[state.pc as usize];
+        let ref instr: opCode       = (instr_set.0)[e.pc as usize];
+        let ref param: Vec<String>  = (instr_set.1)[e.pc as usize];
+        let ref fuel_cost: i64      = (instr_set.2)[e.pc as usize];
 
         // println!("\n\nExecute opCode: {}", map_to_string(&instr));
         // println!("With params of: {:?}", param);
         // println!("And a fuel cost of: {:?}", fuel_cost);
 
-        execute_instr(&instr, &param, state);
+        execute_instr(&instr, &param, e);
 
-        // println!("This is the stack: {:?}", state.stack);
-        // println!("This is the memory: {:?}\n\n", state.memory);
-        // println!("This is the counter: {:?}", state.pc);
-
-        if state.pc < 0 {
+        // println!("This is the stack: {:?}", e.stack);
+        // println!("This is the memory: {:?}\n\n", e.memory);
+        // println!("This is the counter: {:?}", e.pc);
+        if e.pc < 0 {
             break;
         }
-        state.pc+=1;
+        e.pc+=1;
     }
-    log_from_env(state)
+    log_from_env(e)
 }
 
-pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut state: &mut env_state){
+pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut e: &mut env){
 
     match instr {
         &ADD     => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "ADD").to_string();
-            // state.fuel -= ;
+            e.code_hash = krypto::string_hash(&e.code_hash, "ADD").to_string();
+            // e.fuel -= ;
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            // map_to_fn(opCode_param::ADD(&mut state.stack, &mut state.memory, n));
-            map_to_fn(opCode_param::ADD(state, n));
+            // map_to_fn(opCode_param::ADD(&mut e.stack, &mut e.memory, n));
+            map_to_fn(opCode_param::ADD(e, n));
         },
         &MUL     => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "MUL").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "MUL").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::MUL(state, n));
+            map_to_fn(opCode_param::MUL(e, n));
         },
         &DIV     => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "DIV").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "DIV").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::DIV(state, n));
+            map_to_fn(opCode_param::DIV(e, n));
         },
         &MOD     =>{
-            state.code_hash = krypto::string_hash(&state.code_hash, "MOD").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "MOD").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::MOD(state, n));
+            map_to_fn(opCode_param::MOD(e, n));
         },
         &SUB     => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "SUB").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "SUB").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::SUB(state, n));
+            map_to_fn(opCode_param::SUB(e, n));
         },
         &POP     => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "POP").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "POP").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::POP(state, n));
+            map_to_fn(opCode_param::POP(e, n));
         },
-        &LOAD    =>{
-            state.code_hash = krypto::string_hash(&state.code_hash, "LOAD").to_string();
+
+        &SEND     => {
+            e.code_hash = krypto::string_hash(&e.code_hash, "SEND").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::LOAD(state, n));
+            map_to_fn(opCode_param::SEND(e, n));
+        },
+
+        &JUMP     => {
+            e.code_hash = krypto::string_hash(&e.code_hash, "JUMP").to_string();
+            let n: i32 = param[0].to_string().parse::<i32>().unwrap();
+            map_to_fn(opCode_param::JUMP(e, n));
+        },
+
+        &LOAD    =>{
+            e.code_hash = krypto::string_hash(&e.code_hash, "LOAD").to_string();
+            let n: i32 = param[0].to_string().parse::<i32>().unwrap();
+            map_to_fn(opCode_param::LOAD(e, n));
         },
         &PUSH    =>{
-            state.code_hash = krypto::string_hash(&state.code_hash, "PUSH").to_string();
+            e.code_hash = krypto::string_hash(&e.code_hash, "PUSH").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
-            map_to_fn(opCode_param::PUSH(state, n));
+            map_to_fn(opCode_param::PUSH(e, n));
         },
         &STOP    =>{
-            state.code_hash = krypto::string_hash(&state.code_hash, "STOP").to_string();
-            map_to_fn(opCode_param::STOP(state));
+            e.code_hash = krypto::string_hash(&e.code_hash, "STOP").to_string();
+            map_to_fn(opCode_param::STOP(e));
         },
         &ERROR   => {
-            state.code_hash = krypto::string_hash(&state.code_hash, "ERROR").to_string();
-            map_to_fn(opCode_param::ERROR(state));
+            e.code_hash = krypto::string_hash(&e.code_hash, "ERROR").to_string();
+            map_to_fn(opCode_param::ERROR(e));
         },
     }
 }
 
-pub fn new_proof(env: &mut env_state) -> String{
+pub fn new_proof(env: &mut env) -> String{
     let a = krypto::string_hash(&env.code_hash, &env.env_acc.address);
     return krypto::string_hash(&a, &(env.env_log.fuel).to_string());
 }
 
-pub fn new_env(acc: account, l: log) -> env_state{
-    env_state{  env_acc:    acc,
-                env_log:    l,
-                stack:      Vec::new(),
-                pc:         0,
-                memory:     Vec::new(),
-                code_hash:  "".to_string(),
-            }
+pub fn new_env(acc: account, l: log) -> env{
+    env{    env_acc:      acc,
+            env_log:        l,
+            stack:          Vec::new(),
+            pc:             0,
+            memory:         Vec::new(),
+            code_hash:      "".to_string(),
+    }
 }
 
-pub fn log_from_env(mut env: &mut env_state) -> log{
-    let l_block:    String = (*env.env_acc.block).to_string();
-    let l_nonce:    i64 = env.env_acc.log_nonce;
-    let l_origin:   String = (*env.env_log.hash).to_string();
-    let l_target:   String = (*env.env_log.target).to_string();
-    let l_fuel:     i64 = (env.env_log.fuel);
-    let l_proof:    String = new_proof(env);
+pub fn log_from_env(mut env: &mut env) -> log{
+    let l_block:    String  = (*env.env_acc.block).to_string();
+    let l_nonce:    i64     = env.env_acc.log_nonce;
+    let l_origin:   String  = (*env.env_log.hash).to_string();
+    let l_target:   String  = (*env.env_log.target).to_string();
+    let l_fuel:     i64     = env.env_log.fuel;
+    let l_proof:    String  = new_proof(env);
 
     let mut a: String = krypto::string_int_hash(&l_block, &l_nonce);
     a = krypto::string_hash(&a, &l_origin);
@@ -167,7 +177,7 @@ pub fn log_from_env(mut env: &mut env_state) -> log{
   // fn test_env1() {
   //   println!("\n\n\n\nenv test 1"); //Works!
   //
-  //   let mut env = env_state{stack: Vec::new(), pc: 0, memory: Vec::new(), code_hash: "".to_string()};
+  //   let mut env = env{stack: Vec::new(), pc: 0, memory: Vec::new(), code_hash: "".to_string()};
   //   let x: i32 = 7;
   //   let y: i32 = 2;
   //   map_to_fn(opCode_param::LOAD(&mut env.stack, x));

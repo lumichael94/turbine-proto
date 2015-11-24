@@ -2,13 +2,15 @@ extern crate rand;
 extern crate crypto;
 extern crate rustc_serialize;
 
-use vm::env::env_state;
+use vm::env::env;
 
 pub enum opCode {
     ADD, MUL, DIV, MOD, SUB,
     POP, LOAD, PUSH, STOP, ERROR,
+    SEND, JUMP,
+    // ADDRESS,
     // STORE, STORE8, JUMP, FUEL, JUMPDEST, PC
-    // ADDRESS, GUAGE, ORIGIN,
+    // , GUAGE, ORIGIN,
     // DUP, SWAP,CREATE, CALL, RETURN,
 }
 
@@ -17,16 +19,21 @@ pub enum opCode_param<'a> {
     //Stop and Arithmetic Operations
     // STOP,
     // ADD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
-    ADD(&'a mut env_state, i32),
-    SUB(&'a mut env_state, i32),
-    POP(&'a mut env_state, i32),
-    PUSH(&'a mut env_state, i32),
-    MUL(&'a mut env_state, i32),
-    DIV(&'a mut env_state, i32),
-    MOD(&'a mut env_state, i32),
-    LOAD(&'a mut env_state, i32),
-    STOP(&'a mut env_state),
-    ERROR(&'a mut env_state),
+    ADD(&'a mut env, i32),
+    SUB(&'a mut env, i32),
+    POP(&'a mut env, i32),
+    PUSH(&'a mut env, i32),
+    MUL(&'a mut env, i32),
+    DIV(&'a mut env, i32),
+    MOD(&'a mut env, i32),
+    LOAD(&'a mut env, i32),
+    // ADDRESS(&'a mut env, String),
+
+    SEND(&'a mut env, i32),
+    JUMP(&'a mut env, i32),
+
+    STOP(&'a mut env),
+    ERROR(&'a mut env),
 
     //Comparison and Bitwise Logic Operations
     // LESS, GREAT, EQUAL, ISZERO, AND,
@@ -34,7 +41,6 @@ pub enum opCode_param<'a> {
 
     //Environment Information
     // ADDRESS, GUAGE, ORIGIN,
-    // CODESIZE, CODECOPY,
 
     //Block Information
     // BLOCKHASH, TIMESTAMP, BNONCE, BGUAGE,
@@ -67,6 +73,10 @@ pub fn map_to_fn(code: opCode_param) {
         opCode_param::LOAD(env, word)          => load(env, word),
         opCode_param::PUSH(env, n)     => push(env, n),
         opCode_param::POP(env, n)      => pop(env, n),
+
+        opCode_param::SEND(env, n)    => send(env, n),
+        opCode_param::JUMP(env, n)    => jump(env, n),
+        // opCode_param::ADDRESS(env, address)    => address(env, address),
 
         opCode_param::STOP(env)       => stop(env),
         opCode_param::ERROR(env)      => error(env),
@@ -101,7 +111,7 @@ pub fn map_to_fn(code: opCode_param) {
 //     println!("ADD: {}", memory.last().unwrap());
 // }
 
-fn add(mut env: &mut env_state, n: i32){
+fn add(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
         let mut ans = env.memory.pop().unwrap();
         env.env_log.fuel -= map_to_fuel(opCode::ADD);
@@ -115,7 +125,7 @@ fn add(mut env: &mut env_state, n: i32){
     }
 }
 
-fn sub(mut env: &mut env_state, n: i32){
+fn sub(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
         env.env_log.fuel -= map_to_fuel(opCode::SUB);
         let mut ans = env.memory.pop().unwrap();
@@ -131,7 +141,7 @@ fn sub(mut env: &mut env_state, n: i32){
 
 }
 
-fn mul(mut env: &mut env_state, n: i32){
+fn mul(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MUL){
         env.env_log.fuel -= map_to_fuel(opCode::MUL);
         let mut ans = env.memory.pop().unwrap();
@@ -146,7 +156,7 @@ fn mul(mut env: &mut env_state, n: i32){
 
 }
 
-fn div(mut env: &mut env_state, n: i32){
+fn div(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::DIV){
         env.env_log.fuel -= map_to_fuel(opCode::DIV);
         let mut ans = env.memory.pop().unwrap();
@@ -160,7 +170,7 @@ fn div(mut env: &mut env_state, n: i32){
     }
 }
 
-fn modulo(mut env: &mut env_state, n: i32){
+fn modulo(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MOD){
         env.env_log.fuel -= map_to_fuel(opCode::MOD);
         let mut ans = env.memory.pop().unwrap();
@@ -174,7 +184,27 @@ fn modulo(mut env: &mut env_state, n: i32){
     }
 }
 
-fn pop(mut env: &mut env_state, n: i32){
+fn send(mut env: &mut env, n: i32){
+    if env.env_log.fuel > map_to_fuel(opCode::SEND){
+        env.env_log.fuel -= map_to_fuel(opCode::SEND);
+        env.env_log.fuel -= n as i64;
+        // println!("SEND: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
+    }
+}
+
+fn jump(mut env: &mut env, n: i32){
+    if env.env_log.fuel > map_to_fuel(opCode::JUMP){
+        env.env_log.fuel -= map_to_fuel(opCode::JUMP);
+        env.pc = n as i64;
+        // println!("JUMP: {}", env.memory.last().unwrap());
+    } else {
+        env.pc = -2;
+    }
+}
+
+fn pop(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::POP) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::POP);
         for i in 0..n{
@@ -186,7 +216,7 @@ fn pop(mut env: &mut env_state, n: i32){
     // println!("POP")
 }
 
-fn push(mut env: &mut env_state, n: i32){
+fn push(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::PUSH) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::PUSH);
         for i in 0..n{
@@ -198,7 +228,7 @@ fn push(mut env: &mut env_state, n: i32){
     }
 }
 
-fn load(mut env: &mut env_state, word: i32){
+fn load(mut env: &mut env, word: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MOD){
         env.env_log.fuel -= map_to_fuel(opCode::MOD);
         env.stack.push(word);
@@ -208,12 +238,12 @@ fn load(mut env: &mut env_state, word: i32){
     }
 }
 
-fn stop(mut env: &mut env_state){
+fn stop(mut env: &mut env){
     env.pc = -1;
     // println!("STOP");
 }
 
-fn error(mut env: &mut env_state){
+fn error(mut env: &mut env){
     env.pc = -2;
     // println!("ERROR");
 }
@@ -227,14 +257,14 @@ pub fn map_to_fuel(code: opCode) -> i64{
         opCode::MOD => return 13,
         opCode::POP => return 2,
         opCode::LOAD => return 7,
-        // opCode::SEND => return 10,
+        opCode::SEND => return 10,
         // opPrice::STORE => return 11,
         // opPrice::STORE8 => return 31,
-        // opPrice::JUMP => return 19,
+        opCode::JUMP => return 7,
         // opPrice::PC => return 23,
         // opPrice::FUEL => return 13,
         // opPrice::JUMPDEST => return 19,
-        // opPrice::ADDRESS => return 43,
+        // opCode::ADDRESS => return 43,
         // opPrice::GUAGE => return 29,
         // opPrice::ORIGIN => return 43,
         opCode::PUSH => return 1,

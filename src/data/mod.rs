@@ -2,5 +2,4 @@
 pub mod account;
 pub mod state;
 pub mod database;
-pub mod chain;
 pub mod log;

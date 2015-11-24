@@ -13,6 +13,7 @@ use data::account::account;
 use data::database;
 use network::proto;
 use postgres::{Connection, SslMode};
+use util::{helper, krypto};
 
 
 // pub fn listen(listen_addr: SocketAddrV4) {
@@ -57,7 +58,6 @@ pub fn connect(address: &str){
 
 fn handle(mut stream: TcpStream) {
 	println!("Connected. Passed to handler");
-	let conn = database::connect_db();
 	let mut proto_buf;
 	// proto::handshake(&mut stream, &conn);
 	stream.write(&[2, 0]);
@@ -70,11 +70,9 @@ fn handle(mut stream: TcpStream) {
 	}
 	println!("Finished reading from stream.");
 	drop(stream);
-	database::close_db(conn);
 }
 
 fn match_proto(incoming: &[u8], mut stream: &mut TcpStream){
-	// println!("Received protocol: {:?}", incoming);
 	match incoming[0]{
 		0			=> println!("Goodbye"),
 		1			=> println!("Go."),
@@ -84,20 +82,46 @@ fn match_proto(incoming: &[u8], mut stream: &mut TcpStream){
 						},
 		3			=> {
 							println!("Incoming message >> Sending Handshake");
+							println!("Their handshake: {:?}", read_stream(stream, incoming[1]));
+						},
+		4			=> {
+							println!("Incoming message >> Requesting Log");
+							let raw_hash = read_stream(stream, incoming[1]);
+							let hash = String::from_utf8(raw_hash).unwrap();
+							proto::send_log(stream, hash);
+						},
+		5			=> {
+							println!("Incoming message >> Sending Log");
+							println!("Their log: {:?}", read_stream(stream, incoming[1]));
+						},
+		6			=> {
+							println!("Incoming message >> Requesting Account");
+							let raw_address = read_stream(stream, incoming[1]);
+							let address = String::from_utf8(raw_address).unwrap();
+							proto::send_account(stream, address);
+						},
+		7			=> {
+							println!("Incoming message >> Sending Account");
 							println!("Their account: {:?}", read_stream(stream, incoming[1]));
 						},
+		8			=> {
+							println!("Incoming message >> Requesting State");
+							let raw_hash = read_stream(stream, incoming[1]);
+							let hash = String::from_utf8(raw_hash).unwrap();
+							proto::send_state(stream, hash);
+						},
+		9			=> {
+							println!("Incoming message >> Sending State");
+							println!("Their state: {:?}", read_stream(stream, incoming[1]));
+						},
 		17 			=> println!("what is this."),
-		_			=> println!("matches nothing.")
+		_			=> println!("matches nothing."),
 	}
 }
 
-fn read_stream(mut stream: &mut TcpStream, length: u8) -> Vec<u8>{
-	let mut data_buf: Vec<u8> = Vec::new();
-	let mut handle = stream.take(length as u64);
-	let _ = handle.read(&mut data_buf);
-		// Err(e) 	=> panic!("Error on read: {}", e),
-		// Ok(_) 	=> {
-	println!("a;lskdfj: {:?}", data_buf);
+fn read_stream(stream: &mut TcpStream, length: u8) -> Vec<u8>{
+	let mut data_buf = vec![0; length as usize];
+	let _ = stream.read(&mut data_buf[..]);
 	return data_buf;
 }
 

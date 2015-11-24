@@ -1,6 +1,8 @@
 extern crate rand;
 extern crate crypto;
+extern crate secp256k1;
 extern crate rustc_serialize;
+extern crate bincode;
 extern crate postgres;
 extern crate chrono;
 
@@ -8,9 +10,13 @@ use std::os;
 use std::sync;
 use self::rand::{Rng, OsRng};
 use postgres::{Connection, SslMode};
-
+use self::bincode::SizeLimit;
+use self::bincode::rustc_serialize::{encode, decode};
+use rustc_serialize::{Encodable};
+use rustc_serialize::json::{self, Json, Encoder};
 use data::log::log;
 
+#[derive(RustcEncodable, RustcDecodable, PartialEq)]
 pub struct state {
     nonce           :   i64,
     hash            :   String,
@@ -77,6 +83,10 @@ pub fn create_state_table(conn: &Connection){
 
 pub fn drop_state_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS state", &[]).unwrap();
+}
+
+pub fn state_to_vec(s: &state)-> Vec<u8>{
+    encode(s, SizeLimit::Infinite).unwrap()
 }
 
 // // Tests

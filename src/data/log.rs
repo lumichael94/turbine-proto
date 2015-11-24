@@ -1,13 +1,20 @@
 extern crate rand;
 extern crate crypto;
+extern crate secp256k1;
 extern crate rustc_serialize;
+extern crate bincode;
 extern crate postgres;
 extern crate chrono;
+
+use self::secp256k1::*;
+use self::secp256k1::key::*;
 use postgres::{Connection, SslMode};
+use self::bincode::SizeLimit;
+use self::bincode::rustc_serialize::{encode, decode};
+use rustc_serialize::{Encodable};
+use rustc_serialize::json::{self, Json, Encoder};
 
-// use std::os;
-// use std::sync;
-
+#[derive(RustcEncodable, RustcDecodable, PartialEq)]
 pub struct log {
     pub hash:   String,     //  hash hash of opCodes executed
     pub block:  String,     //  hash of the block state
@@ -89,6 +96,13 @@ pub fn create_log_table(conn: &Connection){
 pub fn drop_log_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS log", &[]).unwrap();
 }
+
+pub fn log_to_vec(l: &log)-> Vec<u8>{
+    encode(l, SizeLimit::Infinite).unwrap()
+}
+
+
+
 // #[cfg(test)]
 // mod test {
 //     extern crate postgres;

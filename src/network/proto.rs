@@ -8,7 +8,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
 use network::server;
-use data::{account, database};
+use data::{account, database, log, state};
 use std::io::Read;
 use std::io::Write;
 use util::helper;
@@ -20,39 +20,39 @@ pub fn connect_to_peers(){
     server::connect(peer);
 }
 
-pub fn send_handshake(mut stream :&mut TcpStream){
+pub fn send_handshake(stream :&mut TcpStream){
     let conn = database::connect_db();
     // Retrieving Personal Account
     let my_acc: account::account = account::get_current_account(&conn);
     // Sending account for verification
-    send_account(stream, &my_acc);
+    send_account(stream, my_acc.address);
     database::close_db(conn);
 }
 
-pub fn send_account(mut stream :&mut TcpStream, acc: &(account::account)){
-    // let acc: account::account = account::get_account(&add, conn);
-    let buf = &account::acc_to_vec(acc);
+pub fn send_account(stream :&mut TcpStream, address: String){
+
+    let conn = database::connect_db();
+    let acc = account::get_account(&address, &conn);
+    let buf = &account::acc_to_vec(&acc);
     let _ = stream.write(&[3, buf.len() as u8]);
     let _ = stream.write(buf);
+
+    database::close_db(conn);
 }
 
-pub fn send_log(){
-
+pub fn send_log(stream :&mut TcpStream, hash: String){
+    let conn = database::connect_db();
+    let l = log::get_log(&hash, &conn);
+    let buf = &log::log_to_vec(&l);
+    let _ = stream.write(&[5, buf.len() as u8]);
+    let _ = stream.write(buf);
+    database::close_db(conn);
 }
 
-pub fn send_block(){
-
+pub fn send_state(stream :&mut TcpStream, hash: String){
+    let conn = database::connect_db();
+    let s = state::get_state(&hash, &conn);
+    let buf = &state::state_to_vec(&s);
+    let _ = stream.write(&[8, buf.len() as u8]);
+    let _ = stream.write(buf);
 }
-
-pub fn request_block(){
-
-}
-
-pub fn request_log(){
-
-}
-
-// pub enum proto_code {
-//
-//
-// }
