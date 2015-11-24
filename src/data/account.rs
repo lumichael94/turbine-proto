@@ -29,8 +29,9 @@ pub struct account{
     pub log_nonce   : i64,
     pub fuel        : i64,
     pub code        : String,
-    pub block       : String,
+    pub state       : String,
     pub public_key  : Vec<u8>,
+    pub secret_key  : Vec<u8>,
 }
 
 pub fn drop_account(address: String, conn: &Connection){
@@ -47,13 +48,14 @@ pub fn save_account(acc: &account, conn: &Connection){
     let nonce = acc.log_nonce;
     let fuel = acc.fuel;
     let code: String = (*acc.code).to_string();
-    let block: String = (*acc.block).to_string();
+    let state: String = (*acc.state).to_string();
     let ref public_key = *acc.public_key;
+    let ref secret_key = *acc.secret_key;
 
     conn.execute("INSERT INTO account \
-                  (address, ip, trusted, log_nonce, fuel, code, block, public_key) \
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
-                  &[&add, &ip_add, &is_trusted, &nonce, &fuel, &code, &block, &public_key]).unwrap();
+                  (address, ip, trusted, log_nonce, fuel, code, state, public_key, secret_key) \
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                  &[&add, &ip_add, &is_trusted, &nonce, &fuel, &code, &state, &public_key, &secret_key]).unwrap();
 }
 
 pub fn create_account_table(conn: &Connection){
@@ -64,8 +66,9 @@ pub fn create_account_table(conn: &Connection){
                     log_nonce       bigint,
                     fuel            bigint,
                     code            text,
-                    block           text,
-                    public_key      bytea
+                    state           text,
+                    public_key      bytea,
+                    secret_key      bytea
                   )", &[]).unwrap();
 }
 
@@ -89,8 +92,9 @@ pub fn get_account(add: &str, conn: &Connection) -> account{
         log_nonce   : row.get(3),
         fuel        : row.get(4),
         code        : row.get(5),
-        block       : row.get(6),
+        state       : row.get(6),
         public_key  : row.get(7),
+        secret_key  : row.get(8),
     }
 }
 
@@ -118,23 +122,40 @@ pub fn acc_to_vec(acc: &account)-> Vec<u8>{
     encode(acc, SizeLimit::Infinite).unwrap()
 }
 
+pub fn vec_to_acc(raw_acc: Vec<u8>) -> account{
+    let acc: account = decode(&raw_acc[..]).unwrap();
+    return acc;
+}
+
 pub fn new_account() -> account{
     let secret_key = krypto::gen_secret_key();
     let public_key = krypto::gen_public_key(&secret_key);
     let pk: Vec<u8> = encode(&public_key, SizeLimit::Infinite).unwrap();
+    let sk: Vec<u8> = encode(&secret_key, SizeLimit::Infinite).unwrap();
 
-    // println!("\nYour public key is: {:?}\n", public_key);
-    // println!("\nYour secret key is: {:?}\n", secret_key);
-
-    // account {   address:    krypto::gen_string(32),
     account {   address:    "my_acc".to_string(),
                 ip:         "127.0.0.1:8888".to_string(),
                 trusted:    false,
                 log_nonce:  0 as i64,
                 fuel:       0 as i64,
                 code:       "".to_string(),
-                block:      "block address".to_string(),        //TODO: Use real block address
+                state:      "state address".to_string(),        //TODO: Use real state address
                 public_key: pk,
+                secret_key: sk,
+            }
+}
+
+pub fn scrub_key(acc: account) -> account{
+    let blank_key: Vec<u8> = Vec::new();
+    account {   address:    acc.address,
+                ip:         acc.ip,
+                trusted:    acc.trusted,
+                log_nonce:  acc.log_nonce,
+                fuel:       acc.fuel,
+                code:       acc.code,
+                state:      acc.state,
+                public_key: acc.public_key,
+                secret_key: blank_key,
             }
 }
 
@@ -160,7 +181,7 @@ pub fn new_account() -> account{
     //                         log_nonce:  0 as i64,
     //                         fuel:       0 as i64,
     //                         code:       "".to_string(),
-    //                         block:      "block address".to_string(),
+    //                         state:      "state address".to_string(),
     //                         public_key: "public_key".to_string(),
     //                     };
     //

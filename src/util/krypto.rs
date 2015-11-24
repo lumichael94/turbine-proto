@@ -1,15 +1,16 @@
-#[allow(dead_code, non_camel_case_types, unused_imports)]
 extern crate rand;
 extern crate crypto;
 extern crate rustc_serialize;
 extern crate secp256k1;
+extern crate bincode;
 
 use self::rand::{Rng, OsRng};
 use self::crypto::digest::Digest;
 use self::crypto::sha2::Sha256;
 use self::secp256k1::*;
 use self::secp256k1::key::*;
-
+use self::bincode::SizeLimit;
+use self::bincode::rustc_serialize::{encode, decode};
 
 pub fn gen_string(size: i32)-> String{
     let mut rng = match rand::os::OsRng::new(){
@@ -63,13 +64,24 @@ pub fn check_message(mess: &Message, sig: &Signature, pk: &PublicKey) -> Result<
     Secp256k1::verify(&engine, mess, sig, pk)
 }
 
-pub fn sign_message(mess: &Message, sk: &SecretKey) -> Result<Signature, Error>{
+pub fn sign_message(data: &[u8], sk: &SecretKey) -> Result<Signature, Error>{
     let engine = Secp256k1::new();
-    Secp256k1::sign(&engine, mess, sk)
+    let mess: Message = Message::from_slice(data).unwrap();
+    Secp256k1::sign(&engine, &mess, sk)
 }
 
 pub fn gen_message(mess: &str) -> Result<Message, Error>{
     return Message::from_slice(mess.as_bytes());
+}
+
+pub fn encode_sk(sk: &SecretKey)-> Vec<u8>{
+    let secret_key: Vec<u8> = encode(&sk, SizeLimit::Infinite).unwrap();
+    return secret_key;
+}
+
+pub fn decode_sk(sk: &Vec<u8>)-> SecretKey{
+    let secret_key: SecretKey = decode(&sk).unwrap();
+    return secret_key;
 }
 
 // //Tests

@@ -13,7 +13,7 @@ pub fn node_count(){
 
 }
 
-pub fn chain_block_count(){
+pub fn chain_state_count(){
 
 }
 

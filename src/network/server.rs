@@ -41,21 +41,6 @@ pub fn connect(address: &str){
 	handle(stream);
 }
 
-// fn write_handle(mut stream: TcpStream){
-// 	let mut proto_code = send_info();
-// 	match stream.write(&proto_code) {
-// 		Err(e) => println!("Error on writing to stream!"),
-// 		Ok(_) => {
-// 			if proto_code[0..2] == [0,0] {
-// 				let print_this: &[u8] = &proto_code;
-// 				println!("Output is: {:?}", print_this);
-// 			} else {
-// 				println!("Output is not formatted correctly.");
-// 			}
-// 		},
-// 	}
-// }
-
 fn handle(mut stream: TcpStream) {
 	println!("Connected. Passed to handler");
 	let mut proto_buf;
@@ -85,14 +70,14 @@ fn match_proto(incoming: &[u8], mut stream: &mut TcpStream){
 							println!("Their handshake: {:?}", read_stream(stream, incoming[1]));
 						},
 		4			=> {
-							println!("Incoming message >> Requesting Log");
+							println!("Incoming message >> Requesting Logs");
 							let raw_hash = read_stream(stream, incoming[1]);
 							let hash = String::from_utf8(raw_hash).unwrap();
 							proto::send_log(stream, hash);
 						},
 		5			=> {
-							println!("Incoming message >> Sending Log");
-							println!("Their log: {:?}", read_stream(stream, incoming[1]));
+							println!("Incoming message >> Sending Logs");
+							println!("Their logs: {:?}", read_stream(stream, incoming[1]));
 						},
 		6			=> {
 							println!("Incoming message >> Requesting Account");
@@ -113,6 +98,9 @@ fn match_proto(incoming: &[u8], mut stream: &mut TcpStream){
 		9			=> {
 							println!("Incoming message >> Sending State");
 							println!("Their state: {:?}", read_stream(stream, incoming[1]));
+						},
+		16			=> {
+							println!("Incoming message >> Update State");
 						},
 		17 			=> println!("what is this."),
 		_			=> println!("matches nothing."),

@@ -42,8 +42,8 @@ pub enum opCode_param<'a> {
     //Environment Information
     // ADDRESS, GUAGE, ORIGIN,
 
-    //Block Information
-    // BLOCKHASH, TIMESTAMP, BNONCE, BGUAGE,
+    //state Information
+    // stateHASH, TIMESTAMP, BNONCE, BGUAGE,
 
     //Stack, Memory, Storage, and Flow Operations
     // POP, LOAD, STORE, STORE8, JUMP,

@@ -18,28 +18,28 @@ use data::log::log;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq)]
 pub struct state {
-    nonce           :   i64,
-    hash            :   String,
-    prev_block      :   String,     //Hash of previous block
-    time_stamp      :   String,
-    log_hash        :   String,
-    proof_hash      :   String,
-    fuel_exp        :   i64,
+    pub nonce           :   i64,
+    pub hash            :   String,
+    pub prev_state      :   String,     //Hash of previous state
+    pub time_stamp      :   String,
+    pub log_hash        :   String,
+    pub proof_hash      :   String,
+    pub fuel_exp        :   i64,
 }
 
 pub fn save_state(s: &state, conn: &Connection){
     let nonce: i64 = s.nonce;
     let hash: String = (*s.hash).to_string();
-    let prev_block: String = (*s.prev_block).to_string();
+    let prev_state: String = (*s.prev_state).to_string();
     let time_stamp: String = (*s.time_stamp).to_string();
     let log_hash: String = (*s.log_hash).to_string();
     let proof_hash: String = (*s.proof_hash).to_string();
     let fuel_exp: i64 = s.fuel_exp;
 
     conn.execute("INSERT INTO state \
-                  (nonce, hash, prev_block, time_stamp, log_hash, proof_hash, fuel_exp) \
+                  (nonce, hash, prev_state, time_stamp, log_hash, proof_hash, fuel_exp) \
                   VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                  &[&nonce, &hash, &prev_block, &time_stamp, &log_hash, &proof_hash, &fuel_exp]).unwrap();
+                  &[&nonce, &hash, &prev_state, &time_stamp, &log_hash, &proof_hash, &fuel_exp]).unwrap();
 }
 
 pub fn get_state(hash: &str, conn: &Connection) -> state{
@@ -54,7 +54,7 @@ pub fn get_state(hash: &str, conn: &Connection) -> state{
     state {
         nonce:      row.get(0),
         hash:       row.get(1),
-        prev_block: row.get(2),
+        prev_state: row.get(2),
         time_stamp: row.get(3),
         log_hash:   row.get(4),
         proof_hash: row.get(5),
@@ -73,7 +73,7 @@ pub fn create_state_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS state (
                     nonce           BIGINT,
                     hash            text,
-                    prev_block      text,
+                    prev_state      text,
                     time_stamp      text,
                     log_hash        text,
                     proof_hash      text,
@@ -85,8 +85,34 @@ pub fn drop_state_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS state", &[]).unwrap();
 }
 
+pub fn get_current_state(conn: &Connection) -> state{
+    let maybe_stmt = conn.prepare("SELECT * FROM state WHERE nonce = (select max from(nonce) from tbl)");
+    let stmt = match maybe_stmt{
+        Ok(stmt) => stmt,
+        Err(err) => panic!("Error preparing statement: {:?}", err)
+    };
+
+    let rows = stmt.query(&[]).unwrap();
+    let row = rows.get(0);
+
+    state {
+            nonce:      row.get(0),
+            hash:       row.get(1),
+            prev_state: row.get(2),
+            time_stamp: row.get(3),
+            log_hash:   row.get(4),
+            proof_hash: row.get(5),
+            fuel_exp:   row.get(6),
+    }
+}
+
 pub fn state_to_vec(s: &state)-> Vec<u8>{
     encode(s, SizeLimit::Infinite).unwrap()
+}
+
+pub fn vec_to_state(raw_s: Vec<u8>) -> state{
+    let s: state = decode(&raw_s[..]).unwrap();
+    return s;
 }
 
 // // Tests
@@ -106,7 +132,7 @@ pub fn state_to_vec(s: &state)-> Vec<u8>{
 //
 //     let s: state = state{   nonce:      123987,
 //                             hash:       "hash".to_string(),
-//                             prev_block: "prev hash".to_string(),
+//                             prev_state: "prev hash".to_string(),
 //                             time_stamp: "timestamp".to_string(),
 //                             log_hash:   "log hash".to_string(),
 //                             proof_hash: "proof hash".to_string(),

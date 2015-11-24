@@ -14,12 +14,14 @@ use std::io::Write;
 use util::helper;
 use postgres::{Connection, SslMode};
 
+//General functions
 pub fn connect_to_peers(){
     println!("Connecting to peers.");
     let peer: &str = "127.0.0.1:8888";
     server::connect(peer);
 }
 
+//Sending functions
 pub fn send_handshake(stream :&mut TcpStream){
     let conn = database::connect_db();
     // Retrieving Personal Account
@@ -55,4 +57,16 @@ pub fn send_state(stream :&mut TcpStream, hash: String){
     let buf = &state::state_to_vec(&s);
     let _ = stream.write(&[8, buf.len() as u8]);
     let _ = stream.write(buf);
+    database::close_db(conn);
+}
+
+pub fn request_logs(stream: &mut TcpStream, state_hash: String){
+    let conn = database::connect_db();
+
+    let raw_address: &[u8] = state_hash.as_bytes();
+    let size = raw_address.len();
+    let _ = stream.write(&[5, size as u8]);
+    let _ = stream.write(raw_address);
+
+    database::close_db(conn);
 }

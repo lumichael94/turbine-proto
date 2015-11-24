@@ -7,14 +7,16 @@ extern crate secp256k1;
 use vm::opCodes::{opCode, opCode_param, map_to_fuel, map_to_fn};
 use vm::opCodes::opCode::*;
 use vm::decoder::{decode, map_to_string};
+use postgres::{Connection, SslMode};
 use data::log::log;
-use data::account::account;
+use data::{account, database};
 use util::{krypto, helper};
+use util::krypto::*;
 use self::secp256k1::*;
 use self::secp256k1::key::*;
 
 pub struct env {
-    pub env_acc     : account,
+    pub env_acc     : account::account,
     pub env_log     : log,
     pub stack       : Vec<i32>,
     pub pc          : i64,
@@ -27,7 +29,7 @@ pub struct env {
 //
 // }
 
-pub fn execute_code(mut e: &mut env,
+pub fn execute_code(sign: bool, mut e: &mut env,
     instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> log{
     loop {
         let ref instr: opCode       = (instr_set.0)[e.pc as usize];
@@ -48,7 +50,7 @@ pub fn execute_code(mut e: &mut env,
         }
         e.pc+=1;
     }
-    log_from_env(e)
+    log_from_env(e, sign)
 }
 
 pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut e: &mut env){
@@ -125,8 +127,8 @@ pub fn new_proof(env: &mut env) -> String{
     return krypto::string_hash(&a, &(env.env_log.fuel).to_string());
 }
 
-pub fn new_env(acc: account, l: log) -> env{
-    env{    env_acc:      acc,
+pub fn new_env(acc: account::account, l: log) -> env{
+    env{    env_acc:        acc,
             env_log:        l,
             stack:          Vec::new(),
             pc:             0,
@@ -135,27 +137,66 @@ pub fn new_env(acc: account, l: log) -> env{
     }
 }
 
-pub fn log_from_env(mut env: &mut env) -> log{
-    let l_block:    String  = (*env.env_acc.block).to_string();
+//Local account creating log. Not from outside sources.
+pub fn create_log (c: &str, targ: &str, f: i64, conn: &Connection) -> log{
+    let curr_acc  = account::get_current_account(conn);
+    let unsigned_l = log{   hash    :   "".to_string(),
+                            state   :   "".to_string(),
+                            nonce   :   curr_acc.log_nonce + 1,
+                            origin  :   curr_acc.address,
+                            target  :   targ.to_string(),
+                            fuel    :   f,
+                            code    :   c.to_string(),
+                            sig     :   Vec::new(),
+                            proof   :   "".to_string(),
+                        };
+    let env_acc = account::get_current_account(conn); //Running into borrowing problems. Hack.
+    let mut env = new_env(env_acc, unsigned_l);
+
+    let code: Vec<String> = helper::format_code(&env.env_acc.code);
+    let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
+    execute_code(true, &mut env, &instr_set)
+
+}
+
+//The sign parameter asks whether or not the local account should sign.
+pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
+    let l_state:    String  = (*env.env_acc.state).to_string();
     let l_nonce:    i64     = env.env_acc.log_nonce;
     let l_origin:   String  = (*env.env_log.hash).to_string();
     let l_target:   String  = (*env.env_log.target).to_string();
     let l_fuel:     i64     = env.env_log.fuel;
+    let l_code:     String  = (*env.env_log.code).to_string();
     let l_proof:    String  = new_proof(env);
 
-    let mut a: String = krypto::string_int_hash(&l_block, &l_nonce);
+    let mut a: String = krypto::string_int_hash(&l_state, &l_nonce);
     a = krypto::string_hash(&a, &l_origin);
     a = krypto::string_hash(&a, &l_target);
     a = krypto::string_int_hash(&a, &l_fuel);
     a = krypto::string_hash(&a, &l_proof);
 
+    let l_sig: Vec<u8>; // = (*env.env_log.sig).to_string();
+
+    if sign == true{
+        let conn = database::connect_db();
+        let curr_acc = account::get_current_account(&conn);
+        let sk: SecretKey = decode_sk(&curr_acc.secret_key);
+        let signed: Signature = krypto::sign_message(l_proof.as_bytes(), &sk).unwrap();
+        let engine = Secp256k1::new();
+        l_sig = signed.serialize_der(&engine);
+        database::close_db(conn);
+    } else {
+        l_sig = Vec::new();
+    }
+
     log{    hash:       a.to_string(),
-            block:      l_block,
+            state:      l_state,
             nonce:      l_nonce,
             origin:     l_origin,
             target:     l_target,
             fuel:       l_fuel,
-            sig:        "".to_string(),
+            code:       l_code,
+            sig:        l_sig,
             proof:      l_proof,
         }
 }
@@ -213,12 +254,12 @@ pub fn log_from_env(mut env: &mut env) -> log{
 //                                         log_nonce:  2,
 //                                         fuel:       500,
 //                                         code:       code_text,
-//                                         block:      "block address".to_string(),
+//                                         state:      "state address".to_string(),
 //                                         public_key: "public_key".to_string()
 //                                 };
 //
 //     let l = log::log{   hash:       "hash".to_string(),
-//                         block:      "block".to_string(),
+//                         state:      "state".to_string(),
 //                         nonce:      872635,
 //                         origin:     "origin".to_string(),
 //                         target:     "target".to_string(),
