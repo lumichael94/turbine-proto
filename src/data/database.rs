@@ -7,13 +7,19 @@ extern crate chrono;
 // use std::os;
 // use std::sync;
 use super::*;
-use postgres::{Connection, SslMode};
+use postgres::{Connection, SslMode, error};
 
 //Connect to database.
 pub fn connect_db() -> Connection{
     let conn = Connection::connect("postgresql://postgres:api@localhost", &SslMode::None).unwrap();
     return conn;
 }
+
+pub fn test_connect() -> Result<Connection, error::ConnectError>{
+    let conn = Connection::connect("postgresql://postgres:api@localhost", &SslMode::None);
+    return conn;
+}
+
 
 //Close database connection.
 pub fn close_db(conn: Connection){

@@ -4,47 +4,49 @@ extern crate postgres;
 extern crate chrono;
 extern crate regex;
 
-use std::{os, sync, net, thread};
+use std::thread;
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 use network::{server, proto};
 use data::{account, state, database, log, profile};
-use vm::env;
 use util::helper;
 use self::postgres::Connection;
 use std::io::BufRead;
 use std::sync::mpsc::{self, Sender, Receiver};
 
-pub fn init(){
+pub fn init() -> (Receiver<String>, Arc<Mutex<Vec<Sender<String>>>>){
     println!("Initiating Turbine.");
     check_db();
-    check_net();
+    check_net()
 }
 
 pub fn main() {
-    // let connected = main_loop(&mut init());
-    init();
-    // end(connected);
+    let (from_threads, connected) = init();
+    main_loop(from_threads, connected);
 }
 
-//TODO: Implement this main loop
-pub fn main_loop(connected: &mut Vec<String>) -> Vec<String>{
+pub fn main_loop(from_threads: Receiver<String>, connected: Arc<Mutex<Vec<Sender<String>>>>){
     println!("\n\nInitiating command REPL");
-    loop {
+    let mut go: bool = true;
+    while go {
         print!(">> ");
         io::stdout().flush().unwrap();
-        read_command();
+        go = read_command();
     }
-    return Vec::new();
+    end(from_threads, connected);
 }
 
-pub fn end(connected: Vec<String>) {
-    let conn = database::connect_db();
-
+pub fn end(from_threads: Receiver<String>, connected: Arc<Mutex<Vec<Sender<String>>>>) {
     //TODO: Close all connections and end threads.
-    proto::close_connections(connected);
+
+    proto::close_connections(from_threads, connected);
 
     //TODO: Deactivate current profile.
+    let conn = database::connect_db();
     profile::deactivate(&conn);
+
+    //TODO: Remove this.
+    loop{}
 }
 
 pub fn check_db(){
@@ -86,38 +88,42 @@ pub fn check_db(){
     database::close_db(conn);
 }
 
-pub fn check_net() -> Receiver<String>{
+pub fn check_net() -> (Receiver<String>, Arc<Mutex<Vec<Sender<String>>>>){
     println!("\n\nPerforming network check...");
     let conn = database::connect_db();
     let p = profile::get_active(&conn).unwrap();
     let trusted: Vec<String> = helper::slice_to_vec(&p.trusted);
     let local_ip: String = p.ip;
 
-
     println!("Starting local server...");
     //Creating Server Channel
     //to_server sends a kill command
     //to_turbo sends an connnected command
-    let (to_thread, to_turbo): (Sender<String>, Receiver<String>) = mpsc::channel();
-    let tx = to_thread.clone();
+    let (to_main, from_threads): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let connected: Arc<Mutex<Vec<Sender<String>>>> = Arc::new(Mutex::new(Vec::new()));
+    let serv_arc = connected.clone();
+    let serv_to_main = to_main.clone();
+
     //Starting Server
     let _ = thread::spawn(move ||
-        server::listen(local_ip, tx)
+        server::listen(local_ip, serv_to_main, serv_arc)
     );
-    let bound = to_turbo.recv().unwrap();
 
+    //Waiting for the server to bind.
+    let bound = from_threads.recv().unwrap();
     if bound == "bound".to_string(){
+        let conn_arc = connected.clone();
+        let threads_to_main = to_main.clone();
         //Connecting to trusted accounts for active profile.
         println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
-        let tx = to_thread.clone();
-        let connected: Vec<String> = proto::connect_to_peers(trusted, tx);
-        println!("Connected to {:?} peers.", connected.len());
+        proto::connect_to_peers(trusted, threads_to_main, conn_arc);
+        let conn_len = connected.lock().unwrap().len();
+        println!("Connected to {:?} peers.", conn_len);
     } else {
         println!("Error binding to address.");
     }
-
     database::close_db(conn);
-    return to_turbo;
+    return (from_threads, connected);
 }
 
 //Displays commands and flags
@@ -213,7 +219,7 @@ pub fn read_yn() -> bool{
 }
 
 //Reads and executes a command
-pub fn read_command(){
+pub fn read_command() -> bool{
     let response: String = read_in();
     let split = response.split(" ");
     let raw_vec = split.collect::<Vec<&str>>();
@@ -223,10 +229,14 @@ pub fn read_command(){
     let _ = match &command[..]{
         "profile"   => profile_flags(flags),
         "db"        => database_flags(flags),
-        _   => {
-                    println!("Did not recognize command, please try again.");
-            },
+        "quit"      => {
+            return false;
+        },
+        _           => {
+            println!("Did not recognize command, please try again.");
+        },
     };
+    return true;
 }
 
 #[cfg(test)]

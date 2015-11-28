@@ -169,7 +169,7 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
     let public_key = krypto::gen_public_key(&secret_key);
     let pk: Vec<u8> = encode(&public_key, SizeLimit::Infinite).unwrap();
     let sk: Vec<u8> = encode(&secret_key, SizeLimit::Infinite).unwrap();
-    let acc = account::new_local_account(ip, pk, conn);
+    let acc = account::new_local_account(ip, pk);
     account::save_account(&acc, conn);
 
     let p = profile {

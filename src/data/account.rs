@@ -18,7 +18,7 @@ use self::bincode::SizeLimit;
 use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
 use rustc_serialize::json::{self, Json, Encoder};
-use data::{state, profile};
+use data::{state, profile, database};
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq)]
 pub struct account{
@@ -80,18 +80,19 @@ pub fn get_account(add: &str, conn: &Connection) -> account{
     account {
         address     : row.get(0),
         ip          : row.get(1),
-        log_nonce   : row.get(3),
-        fuel        : row.get(4),
-        code        : row.get(5),
-        state       : row.get(6),
-        public_key  : row.get(7),
+        log_nonce   : row.get(2),
+        fuel        : row.get(3),
+        code        : row.get(4),
+        state       : row.get(5),
+        public_key  : row.get(6),
     }
 }
 
 // Retrieves the active account
 pub fn get_active_account(conn: &Connection) -> account {
-    let loc = profile::get_active(conn).unwrap();
-    let acc = get_account(&loc.account, conn);
+    let p = profile::get_active(&conn).unwrap();
+    println!("Got active profile");
+    let acc = get_account(&p.account, &conn);
     return acc;
 }
 
@@ -104,7 +105,7 @@ pub fn vec_to_acc(raw_acc: Vec<u8>) -> account{
     return acc;
 }
 
-pub fn new_local_account(ip: &str, pk: Vec<u8>, conn: &Connection) -> account{
+pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
     let add = krypto::gen_string(16);
     //TODO: No current state when first initialized
 

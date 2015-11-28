@@ -11,7 +11,6 @@ use postgres::{Connection, SslMode};
 use data::log::log;
 use data::{account, database, profile};
 use util::{krypto, helper};
-use util::krypto::*;
 use self::secp256k1::*;
 use self::secp256k1::key::*;
 
@@ -183,7 +182,7 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
         let profile = profile::get_active(&conn).unwrap();
 
         //TODO: Where to increment log nonce?
-        let sk: SecretKey = decode_sk(&profile.secret_key);
+        let sk: SecretKey = krypto::decode_sk(&profile.secret_key);
         let signed: Signature = krypto::sign_message(l_proof.as_bytes(), &sk).unwrap();
         let engine = Secp256k1::new();
         l_sig = signed.serialize_der(&engine);
