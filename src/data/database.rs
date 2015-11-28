@@ -29,7 +29,7 @@ pub fn check_tables(conn: &Connection) -> Vec<String>{
         Err(err) => panic!("Error preparing statement: {:?}", err)
     };
     //Variable represents missing tables
-    let mut tables: Vec<String> = vec!["account".to_string(), "local".to_string(),
+    let mut tables: Vec<String> = vec!["account".to_string(), "profile".to_string(),
                                         "log".to_string(), "state".to_string()];
     let rows = stmt.query(&[]).unwrap();
     for row in rows {

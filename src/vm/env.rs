@@ -9,7 +9,7 @@ use vm::opCodes::opCode::*;
 use vm::decoder::{decode, map_to_string};
 use postgres::{Connection, SslMode};
 use data::log::log;
-use data::{account, database, local};
+use data::{account, database, profile};
 use util::{krypto, helper};
 use util::krypto::*;
 use self::secp256k1::*;
@@ -154,7 +154,7 @@ pub fn create_log (c: &str, targ: &str, f: i64, conn: &Connection) -> log{
     let env_acc = account::get_active_account(conn);
     let mut env = new_env(env_acc, unsigned_l);
 
-    let code: Vec<String> = helper::format_code(&env.env_acc.code);
+    let code: Vec<String> = helper::slice_to_vec(&env.env_acc.code);
     let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
     execute_code(true, &mut env, &instr_set)
 
@@ -180,7 +180,7 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
 
     if sign == true{
         let conn = database::connect_db();
-        let profile = local::get_active(&conn);
+        let profile = profile::get_active(&conn).unwrap();
 
         //TODO: Where to increment log nonce?
         let sk: SecretKey = decode_sk(&profile.secret_key);

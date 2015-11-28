@@ -15,10 +15,24 @@ use util::helper;
 use postgres::{Connection, SslMode};
 
 //General functions
-pub fn connect_to_peers(){
-    println!("Connecting to peers.");
-    let peer: &str = "127.0.0.1:8888";
-    server::connect(peer);
+//Connects to a list of nodes. Appends connected nodes to list in active profile.
+pub fn connect_to_peers(addresses: Vec<String>) -> Vec<String>{
+    println!("Connecting to peers...");
+    //Connected peers list
+    let mut connected: Vec<String> = Vec::new();
+    for address in addresses{
+            let c: bool = server::connect(&address);
+            if c == true {
+                connected.push(address);
+            }
+    }
+    return connected;
+}
+
+//Closing all active connections
+//TODO: Implement
+pub fn close_connections(addresses: Vec<String>){
+
 }
 
 //Sending functions
@@ -32,7 +46,6 @@ pub fn send_handshake(stream :&mut TcpStream){
 }
 
 pub fn send_account(stream :&mut TcpStream, address: String){
-
     let conn = database::connect_db();
     let acc = account::get_account(&address, &conn);
     let buf = &account::acc_to_vec(&acc);
@@ -69,4 +82,9 @@ pub fn request_logs(stream: &mut TcpStream, state_hash: String){
     let _ = stream.write(raw_address);
 
     database::close_db(conn);
+}
+
+//TODO: Update connected nodes
+pub fn update_connected(){
+    
 }

@@ -17,7 +17,6 @@ use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
 // Checking Functions
 //=====================================
 
-
 pub fn check_handshake(raw_acc: Vec<u8>, ) -> bool{
     check_account(raw_acc)
 }

@@ -17,11 +17,8 @@ use self::postgres::{Connection, SslMode};
 use self::secp256k1::*;
 use self::secp256k1::key::*;
 
-#[test]
+// #[test]
 fn test_main(){
-    let conn: Connection = turbo::init();
-
-    turbo::end(conn);
-    println!("\n\n\nMAIN TEST IS FINISHED.");
+    // turbo::main();
     // turbo::drop_all();
 }

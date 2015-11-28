@@ -35,32 +35,63 @@ pub fn listen(address: &str) {
 	}
 }
 
-pub fn connect(address: &str){
-	let mut stream = TcpStream::connect(address).unwrap();
-	// write_handle(stream);
-	handle(stream);
+//Connect to IP address.
+pub fn connect(address: &str) -> bool{
+	let stream_attempt = TcpStream::connect(address);
+	match stream_attempt {
+		Ok(stream)	=> {
+							thread::spawn(move||{
+								handle(stream);
+							});
+							return true;
+						},
+		Err(_) => false,
+	}
 }
 
 fn handle(mut stream: TcpStream) {
 	println!("Connected. Passed to handler");
 	let mut proto_buf;
 	// proto::handshake(&mut stream, &conn);
-	stream.write(&[2, 0]);
+	let _ = stream.write(&[2, 0]);
 	loop {
 		proto_buf = [0; 2];
 		let _ = match stream.read(&mut proto_buf) {
-			Err(e) => panic!("Error on read: {}", e),
-			Ok(_) => match_proto(&proto_buf[..], &mut stream),
+			Err(e) 	=> panic!("Error on read: {}", e),
+			Ok(_) 	=> match_proto(&proto_buf[..], &mut stream),
 		};
 	}
 	println!("Finished reading from stream.");
 	drop(stream);
 }
 
+pub fn ping(stream: &mut TcpStream)-> bool{
+	let mut inc = [0;2];
+	let _ = stream.write(&[0, 0]);
+	let b: bool = match stream.read(&mut inc){
+		Err(_) 		=> false,
+		Ok(_) 		=> {
+			if inc[0] == 1 {
+				return true;
+			} else {
+				return false;
+			}
+		},
+	};
+	return b;
+}
+
 fn match_proto(incoming: &[u8], mut stream: &mut TcpStream){
 	match incoming[0]{
-		0			=> println!("Goodbye"),
-		1			=> println!("Go."),
+		0			=> {
+							println!("Incoming message >> Ping");
+							//Sending Pong
+							//TODO: Should only send pong if not blacklisted.
+							let _ = stream.write(&[1,0]);
+						},
+		1			=> {
+
+						},
 		2			=> {
 							println!("Incoming message >> Requesting Handshake");
 							proto::send_handshake(stream);
@@ -112,7 +143,6 @@ fn read_stream(stream: &mut TcpStream, length: u8) -> Vec<u8>{
 	let _ = stream.read(&mut data_buf[..]);
 	return data_buf;
 }
-
 
 // #[cfg(test)]
 // mod test {
