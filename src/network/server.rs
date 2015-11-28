@@ -19,7 +19,7 @@ use util::{helper, krypto};
 // pub fn listen(listen_addr: SocketAddrV4) {
 pub fn listen(address: &str) {
 	let listener = TcpListener::bind(address).unwrap();
-	println!("Listening started on {}", address);
+	println!("\nListening started on {}", address);
 
     for stream in listener.incoming() {
     	match stream {

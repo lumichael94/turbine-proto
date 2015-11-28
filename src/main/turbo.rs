@@ -32,6 +32,7 @@ pub fn main_loop(connected: &mut Vec<String>) -> Vec<String>{
 
 pub fn end(connected: Vec<String>) {
     let conn = database::connect_db();
+
     //TODO: Close all connections and end threads.
     proto::close_connections(connected);
 
@@ -40,7 +41,7 @@ pub fn end(connected: Vec<String>) {
 }
 
 pub fn check_db(){
-    println!("Performing database check...");
+    println!("\n\nPerforming database check...");
     println!("Connecting to database...");
     let conn: Connection = database::connect_db();
 
@@ -64,12 +65,12 @@ pub fn check_db(){
         println!("No profiles found. Creating one...");
         new_profile();
     } else {
-        println!("Create a new profile?");
+        println!("\nCreate a new profile? (y/n)");
         let yn: bool = read_yn();
         if yn {
             new_profile();
         } else {
-            println!("Enter name of profile to activate: ");
+            println!("\nEnter name of profile to activate: ");
             let name: String = read_in();
             profile::activate(&name, &conn);
         }
@@ -78,18 +79,19 @@ pub fn check_db(){
 }
 
 pub fn check_net() -> Vec<String> {
+    println!("\n\nPerforming network check...");
     let conn = database::connect_db();
     let p = profile::get_active(&conn).unwrap();
     let trusted: Vec<String> = helper::slice_to_vec(&p.trusted);
     let local_ip: String = p.ip;
 
-    println!("Performing network check...");
+
     println!("Starting local server...");
     //Starting Server
     let _ = thread::spawn(move|| server::listen(&local_ip));
 
     //Connecting to trusted accounts for active profile.
-    println!("There are {:?} trusted accounts on this profile.", trusted.len());
+    println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
     let connected: Vec<String> = proto::connect_to_peers(trusted);
     println!("Connected to {:?} peers.", connected.len());
 
@@ -122,7 +124,7 @@ pub fn database_flags(flags: Vec<String>){
 
 //Drops all database tables
 pub fn drop_all(){
-    println!("Are you sure you want to drop everything?");
+    println!("Are you sure you want to drop everything? (y/n)");
     let yn: bool = read_yn();
     if yn {
         let conn = database::connect_db();
@@ -146,7 +148,7 @@ pub fn profile_flags(flags: Vec<String>){
 //Creates a new profile.
 pub fn new_profile(){
     let conn = database::connect_db();
-    println!("Enter the name of the profile:");
+    println!("\nEnter the name of the profile:");
     let n = read_in();
 
     //TODO: Change from static IP to one that the user enters
@@ -180,7 +182,7 @@ pub fn read_yn() -> bool{
                 "y"|"Y"|"yes"|"Yes"|"YES"   => true,
                 "n"|"N"|"no"|"No"|"NO"      => false,
                 _                           => {
-                                                    println!("Try again: ");
+                                                    println!("Invalid response. Try again.");
                                                     return read_yn();
                                                 },
             };
@@ -213,5 +215,6 @@ mod test {
   fn test_main() {
       println!("Beginning test...");
       main();
+    // drop_all();
   }
 }
