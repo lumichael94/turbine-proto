@@ -13,18 +13,20 @@ use std::io::Read;
 use std::io::Write;
 use util::helper;
 use postgres::{Connection, SslMode};
+use std::sync::mpsc::{self, Sender, Receiver};
 
 //General functions
 //Connects to a list of nodes. Appends connected nodes to list in active profile.
-pub fn connect_to_peers(addresses: Vec<String>) -> Vec<String>{
+pub fn connect_to_peers(addresses: Vec<String>, to_thread: Sender<String>) -> Vec<String>{
     println!("Connecting to peers...");
     //Connected peers list
     let mut connected: Vec<String> = Vec::new();
     for address in addresses{
-            let c: bool = server::connect(&address);
-            if c == true {
-                connected.push(address);
-            }
+        let tx = to_thread.clone();
+        let c: bool = server::connect(&address, tx);
+        if c == true {
+            connected.push(address);
+        }
     }
     return connected;
 }
@@ -86,5 +88,5 @@ pub fn request_logs(stream: &mut TcpStream, state_hash: String){
 
 //TODO: Update connected nodes
 pub fn update_connected(){
-    
+
 }

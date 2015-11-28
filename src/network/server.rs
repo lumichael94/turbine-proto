@@ -14,21 +14,26 @@ use data::database;
 use network::proto;
 use postgres::{Connection, SslMode};
 use util::{helper, krypto};
+use std::sync::mpsc::{self, Sender, Receiver};
+
 
 
 // pub fn listen(listen_addr: SocketAddrV4) {
-pub fn listen(address: &str) {
-	let listener = TcpListener::bind(address).unwrap();
+pub fn listen(address: String, to_thread: Sender<String>){
+	let add: &str  = &address;
+	let listener = TcpListener::bind(add).unwrap();
 	println!("\nListening started on {}", address);
+	let _ = to_thread.send("bound".to_string());
 
     for stream in listener.incoming() {
+		let thread_tx = to_thread.clone();
     	match stream {
     		Err(e) => { println!("Error on listening: {}", e) }
     		Ok(stream) => {
     			thread::spawn(move || {
 					//This only works on nightly it seems. Need to make the switch.
 					// stream.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
-    				handle(stream);
+    				handle(stream, thread_tx);
     			});
     		}
     	}
@@ -36,20 +41,20 @@ pub fn listen(address: &str) {
 }
 
 //Connect to IP address.
-pub fn connect(address: &str) -> bool{
+pub fn connect(address: &str, to_thread: Sender<String>) -> bool{
 	let stream_attempt = TcpStream::connect(address);
 	match stream_attempt {
-		Ok(stream)	=> {
-							thread::spawn(move||{
-								handle(stream);
-							});
-							return true;
-						},
+		Ok(stream) => {
+			thread::spawn(move||{
+				handle(stream, to_thread);
+			});
+			return true;
+		},
 		Err(_) => false,
 	}
 }
 
-fn handle(mut stream: TcpStream) {
+fn handle(mut stream: TcpStream, to_thread: Sender<String>) {
 	println!("Connected. Passed to handler");
 	let mut proto_buf;
 	// proto::handshake(&mut stream, &conn);

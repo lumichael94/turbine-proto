@@ -4,29 +4,36 @@ extern crate postgres;
 extern crate chrono;
 extern crate regex;
 
-use std::{os, sync, net, thread, io};
+use std::{os, sync, net, thread};
+use std::io::{self, Write};
 use network::{server, proto};
 use data::{account, state, database, log, profile};
 use vm::env;
-use util::{helper, krypto};
-use self::postgres::{Connection, SslMode};
+use util::helper;
+use self::postgres::Connection;
 use std::io::BufRead;
-use self::regex::Regex;
-use main::consensus;
+use std::sync::mpsc::{self, Sender, Receiver};
 
-pub fn init() -> Vec<String>{
+pub fn init(){
     println!("Initiating Turbine.");
     check_db();
-    check_net()
+    check_net();
 }
 
 pub fn main() {
-    let connected = main_loop(&mut init());
-    end(connected);
+    // let connected = main_loop(&mut init());
+    init();
+    // end(connected);
 }
 
 //TODO: Implement this main loop
 pub fn main_loop(connected: &mut Vec<String>) -> Vec<String>{
+    println!("\n\nInitiating command REPL");
+    loop {
+        print!(">> ");
+        io::stdout().flush().unwrap();
+        read_command();
+    }
     return Vec::new();
 }
 
@@ -70,6 +77,7 @@ pub fn check_db(){
         if yn {
             new_profile();
         } else {
+            //TODO: Fails if profile doesn't exist.
             println!("\nEnter name of profile to activate: ");
             let name: String = read_in();
             profile::activate(&name, &conn);
@@ -78,7 +86,7 @@ pub fn check_db(){
     database::close_db(conn);
 }
 
-pub fn check_net() -> Vec<String> {
+pub fn check_net() -> Receiver<String>{
     println!("\n\nPerforming network check...");
     let conn = database::connect_db();
     let p = profile::get_active(&conn).unwrap();
@@ -87,18 +95,29 @@ pub fn check_net() -> Vec<String> {
 
 
     println!("Starting local server...");
+    //Creating Server Channel
+    //to_server sends a kill command
+    //to_turbo sends an connnected command
+    let (to_thread, to_turbo): (Sender<String>, Receiver<String>) = mpsc::channel();
+    let tx = to_thread.clone();
     //Starting Server
-    let _ = thread::spawn(move|| server::listen(&local_ip));
+    let _ = thread::spawn(move ||
+        server::listen(local_ip, tx)
+    );
+    let bound = to_turbo.recv().unwrap();
 
-    //Connecting to trusted accounts for active profile.
-    println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
-    let connected: Vec<String> = proto::connect_to_peers(trusted);
-    println!("Connected to {:?} peers.", connected.len());
+    if bound == "bound".to_string(){
+        //Connecting to trusted accounts for active profile.
+        println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
+        let tx = to_thread.clone();
+        let connected: Vec<String> = proto::connect_to_peers(trusted, tx);
+        println!("Connected to {:?} peers.", connected.len());
+    } else {
+        println!("Error binding to address.");
+    }
 
-    // TODO CHECK: Does the server stall when you don't join threads?
-    // let _ = server_thread.join();
     database::close_db(conn);
-    return connected;
+    return to_turbo;
 }
 
 //Displays commands and flags
@@ -138,10 +157,14 @@ pub fn drop_all(){
 
 //Execute profile command with flags
 pub fn profile_flags(flags: Vec<String>){
-    let flag = &flags[0];
-    match &flag[..]{
-        "-n"    => new_profile(),
-        _       => println!("Unrecognized flags for command [profile]"),
+    if flags.len() == 0 {
+        println!("Profile command requires flags.");
+    } else {
+        let flag = &flags[0];
+        match &flag[..]{
+            "-n"    => new_profile(),
+            _       => println!("Unrecognized flags for command [profile]"),
+        }
     }
 }
 
@@ -202,7 +225,6 @@ pub fn read_command(){
         "db"        => database_flags(flags),
         _   => {
                     println!("Did not recognize command, please try again.");
-                    read_command();
             },
     };
 }
@@ -215,6 +237,6 @@ mod test {
   fn test_main() {
       println!("Beginning test...");
       main();
-    // drop_all();
+    //   drop_all();
   }
 }
