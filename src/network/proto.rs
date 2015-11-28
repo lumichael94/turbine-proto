@@ -25,7 +25,7 @@ pub fn connect_to_peers(){
 pub fn send_handshake(stream :&mut TcpStream){
     let conn = database::connect_db();
     // Retrieving Personal Account
-    let my_acc: account::account = account::get_current_account(&conn);
+    let my_acc: account::account = account::get_active_account(&conn);
     // Sending account for verification
     send_account(stream, my_acc.address);
     database::close_db(conn);

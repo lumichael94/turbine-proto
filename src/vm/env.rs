@@ -9,7 +9,7 @@ use vm::opCodes::opCode::*;
 use vm::decoder::{decode, map_to_string};
 use postgres::{Connection, SslMode};
 use data::log::log;
-use data::{account, database};
+use data::{account, database, local};
 use util::{krypto, helper};
 use util::krypto::*;
 use self::secp256k1::*;
@@ -139,7 +139,7 @@ pub fn new_env(acc: account::account, l: log) -> env{
 
 //Local account creating log. Not from outside sources.
 pub fn create_log (c: &str, targ: &str, f: i64, conn: &Connection) -> log{
-    let curr_acc  = account::get_current_account(conn);
+    let curr_acc  = account::get_active_account(conn);
     let unsigned_l = log{   hash    :   "".to_string(),
                             state   :   "".to_string(),
                             nonce   :   curr_acc.log_nonce + 1,
@@ -150,7 +150,8 @@ pub fn create_log (c: &str, targ: &str, f: i64, conn: &Connection) -> log{
                             sig     :   Vec::new(),
                             proof   :   "".to_string(),
                         };
-    let env_acc = account::get_current_account(conn); //Running into borrowing problems. Hack.
+    //TODO: Running into borrowing problems. Kludge.
+    let env_acc = account::get_active_account(conn);
     let mut env = new_env(env_acc, unsigned_l);
 
     let code: Vec<String> = helper::format_code(&env.env_acc.code);
@@ -179,8 +180,10 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
 
     if sign == true{
         let conn = database::connect_db();
-        let curr_acc = account::get_current_account(&conn);
-        let sk: SecretKey = decode_sk(&curr_acc.secret_key);
+        let profile = local::get_active(&conn);
+
+        //TODO: Where to increment log nonce?
+        let sk: SecretKey = decode_sk(&profile.secret_key);
         let signed: Signature = krypto::sign_message(l_proof.as_bytes(), &sk).unwrap();
         let engine = Secp256k1::new();
         l_sig = signed.serialize_der(&engine);

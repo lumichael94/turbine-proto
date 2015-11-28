@@ -16,8 +16,8 @@ use postgres::{Connection, SslMode};
 
 // Please don't judge me for this. I'm tired.
 pub fn format_code(text: &str) -> Vec<String>{
-    let mut s: String = text.to_string();
-    let mut split = s.split(",");
+    let s: String = text.to_string();
+    let split = s.split(",");
     let coll = split.collect::<Vec<&str>>();
     return vec_slice_to_string(&coll);
 }

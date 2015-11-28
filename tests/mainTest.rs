@@ -20,7 +20,8 @@ use self::secp256k1::key::*;
 #[test]
 fn test_main(){
     let conn: Connection = turbo::init();
+
     turbo::end(conn);
     println!("\n\n\nMAIN TEST IS FINISHED.");
-    // turbo::drop_everything();
+    // turbo::drop_all();
 }
