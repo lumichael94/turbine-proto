@@ -169,7 +169,11 @@ pub fn activate(name: &str, conn: &Connection) -> profile{
             //Continue
         },
         Ok(p) => {
-            println!("Profile {:?} is currently active. Deactivating and activating {:?}", p.name, name);
+            if p.name != name{
+                println!("Profile {:?} is currently active. Deactivating and activating {:?}", p.name, name);
+            } else {
+                println!("Profile {:?} is already active.", p.name);
+            }
         },
     }
     let mut p = get_profile(name, conn);

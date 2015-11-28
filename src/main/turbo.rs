@@ -64,9 +64,15 @@ pub fn check_db(){
         println!("No profiles found. Creating one...");
         new_profile();
     } else {
-        println!("Enter name of profile to activate: ");
-        let name: String = read_in();
-        profile::activate(&name, &conn);
+        println!("Create a new profile?");
+        let yn: bool = read_yn();
+        if yn {
+            new_profile();
+        } else {
+            println!("Enter name of profile to activate: ");
+            let name: String = read_in();
+            profile::activate(&name, &conn);
+        }
     }
     database::close_db(conn);
 }
@@ -160,6 +166,10 @@ pub fn read_in() -> String{
     let stdin = io::stdin();
     let mut response = String::new();
     let _ = stdin.read_line(&mut response);
+
+    //Remove "\n" from response
+    let valid = response.len() - 1;
+    response.truncate(valid);
     return response;
 }
 
