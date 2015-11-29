@@ -21,7 +21,6 @@ pub struct state {
     pub nonce           :   i64,
     pub hash            :   String,
     pub prev_state      :   String,     //Hash of previous state
-    pub time_stamp      :   String,
     pub log_hash        :   String,
     pub proof_hash      :   String,
     pub fuel_exp        :   i64,
@@ -31,15 +30,14 @@ pub fn save_state(s: &state, conn: &Connection){
     let nonce: i64 = s.nonce;
     let hash: String = (*s.hash).to_string();
     let prev_state: String = (*s.prev_state).to_string();
-    let time_stamp: String = (*s.time_stamp).to_string();
     let log_hash: String = (*s.log_hash).to_string();
     let proof_hash: String = (*s.proof_hash).to_string();
     let fuel_exp: i64 = s.fuel_exp;
 
     conn.execute("INSERT INTO state \
-                  (nonce, hash, prev_state, time_stamp, log_hash, proof_hash, fuel_exp) \
-                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                  &[&nonce, &hash, &prev_state, &time_stamp, &log_hash, &proof_hash, &fuel_exp]).unwrap();
+                  (nonce, hash, prev_state,log_hash, proof_hash, fuel_exp) \
+                  VALUES ($1, $2, $3, $4, $5, $6)",
+                  &[&nonce, &hash, &prev_state, &log_hash, &proof_hash, &fuel_exp]).unwrap();
 }
 
 pub fn get_state(hash: &str, conn: &Connection) -> state{
@@ -55,10 +53,9 @@ pub fn get_state(hash: &str, conn: &Connection) -> state{
         nonce:      row.get(0),
         hash:       row.get(1),
         prev_state: row.get(2),
-        time_stamp: row.get(3),
-        log_hash:   row.get(4),
-        proof_hash: row.get(5),
-        fuel_exp:   row.get(6),
+        log_hash:   row.get(3),
+        proof_hash: row.get(4),
+        fuel_exp:   row.get(5),
     }
 }
 
@@ -74,7 +71,6 @@ pub fn create_state_table(conn: &Connection){
                     nonce           BIGINT,
                     hash            text,
                     prev_state      text,
-                    time_stamp      text,
                     log_hash        text,
                     proof_hash      text,
                     fuel_exp        BIGINT
@@ -99,10 +95,9 @@ pub fn get_current_state(conn: &Connection) -> state{
             nonce:      row.get(0),
             hash:       row.get(1),
             prev_state: row.get(2),
-            time_stamp: row.get(3),
-            log_hash:   row.get(4),
-            proof_hash: row.get(5),
-            fuel_exp:   row.get(6),
+            log_hash:   row.get(3),
+            proof_hash: row.get(4),
+            fuel_exp:   row.get(5),
     }
 }
 

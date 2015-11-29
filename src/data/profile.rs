@@ -181,6 +181,7 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
         trusted     : "".to_string(),
     };
 
+    println!("a");
     save_profile(&p, conn);
 
     //Creating a new profile also activates it.
@@ -189,6 +190,7 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
         Err(_)  => activate(n, conn),
         Ok(_)   => switch_active(n, conn),
     }
+
     return p;
 }
 

@@ -9,7 +9,7 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use network::{server, proto};
 use data::{account, state, database, log, profile};
-use util::helper;
+use util::{helper, genesis};
 use self::postgres::Connection;
 use std::io::BufRead;
 use std::sync::mpsc::{self, Sender, Receiver};
@@ -139,7 +139,13 @@ pub fn database_flags(flags: Vec<String>){
         "-drop" => {
                     let target = &flags[1];
                     match &target[..]{
-                            "all" => drop_all(),
+                            "all" => {
+                                println!("Are you sure you want to drop everything? (y/n)");
+                                let yn: bool = read_yn();
+                                if yn {
+                                    drop_all();
+                                }
+                            },
                             _     => println!("Unrecognized flag target for [db -drop]"),
                         };
             },
@@ -147,18 +153,19 @@ pub fn database_flags(flags: Vec<String>){
     }
 }
 
+pub fn load_genesis(){
+    drop_all();
+    let genesis_state = genesis::get_genesis();
+}
+
 //Drops all database tables
 pub fn drop_all(){
-    println!("Are you sure you want to drop everything? (y/n)");
-    let yn: bool = read_yn();
-    if yn {
         let conn = database::connect_db();
         account::drop_account_table(&conn);
         state::drop_state_table(&conn);
         log::drop_log_table(&conn);
         profile::drop_profile_table(&conn);
         database::close_db(conn);
-    }
 }
 
 //Execute profile command with flags
@@ -177,14 +184,17 @@ pub fn profile_flags(flags: Vec<String>){
 //Creates a new profile.
 pub fn new_profile(){
     let conn = database::connect_db();
-    println!("\nEnter the name of the profile:");
+    println!("\nEnter the name of new profile:");
     let n = read_in();
 
     //TODO: Change from static IP to one that the user enters
     // println!("Enter the IP address and port (ex. 127.0.0.1:8888):");
     // let ip = read_in();
     let ip = "127.0.0.1:8888";
+    println!("d");
+
     profile::new_profile(&n, &ip, &conn);
+    println!("e");
 
     //TODO: Profile can fail.
     println!("Profile created.");
@@ -232,6 +242,7 @@ pub fn read_command() -> bool{
         "quit"      => {
             return false;
         },
+        "genesis"   => load_genesis(),
         _           => {
             println!("Did not recognize command, please try again.");
         },

@@ -4,5 +4,15 @@ extern crate rustc_serialize;
 extern crate postgres;
 extern crate chrono;
 
-use std::os;
-use std::sync;
+use data::{state, profile, database};
+
+pub fn get_genesis() -> state::state{
+    state::state {
+        nonce           :   0,
+        hash            :   "Genesis State".to_string(),
+        prev_state      :   "".to_string(),
+        log_hash        :   "Genesis Log".to_string(),
+        proof_hash      :   "Genesis Proof".to_string(),
+        fuel_exp        :   100,
+    }
+}

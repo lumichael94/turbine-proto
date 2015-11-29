@@ -29,6 +29,9 @@ pub struct account{
     pub code        : String,
     pub state       : String,
     pub public_key  : Vec<u8>,
+    pub stack       : String,
+    pub memory      : String,
+    pub pc          : i64,
 }
 
 pub fn drop_account(address: String, conn: &Connection){
@@ -46,10 +49,14 @@ pub fn save_account(acc: &account, conn: &Connection){
     let code: String = (*acc.code).to_string();
     let state: String = (*acc.state).to_string();
     let ref public_key = *acc.public_key;
+    let stack: String = (*acc.stack).to_string();
+    let memory: String = (*acc.memory).to_string();
+    let pc: i64 = acc.pc;
+
     conn.execute("INSERT INTO account \
-                  (address, ip, log_nonce, fuel, code, state, public_key) \
-                  VALUES ($1, $2, $3, $4, $5, $6, $7)",
-                  &[&add, &ip_add, &nonce, &fuel, &code, &state, &public_key]).unwrap();
+                  (address, ip, log_nonce, fuel, code, state, public_key, stack, memory, pc) \
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                  &[&add, &ip_add, &nonce, &fuel, &code, &state, &public_key, &stack, &memory, &pc]).unwrap();
 }
 
 pub fn create_account_table(conn: &Connection){
@@ -60,7 +67,10 @@ pub fn create_account_table(conn: &Connection){
                     fuel            bigint,
                     code            text,
                     state           text,
-                    public_key      bytea
+                    public_key      bytea,
+                    stack           text,
+                    memory          text,
+                    pc              bigint
                   )", &[]).unwrap();
 }
 
@@ -85,6 +95,9 @@ pub fn get_account(add: &str, conn: &Connection) -> account{
         code        : row.get(4),
         state       : row.get(5),
         public_key  : row.get(6),
+        stack       : row.get(7),
+        memory      : row.get(8),
+        pc          : row.get(9),
     }
 }
 
@@ -107,15 +120,18 @@ pub fn vec_to_acc(raw_acc: Vec<u8>) -> account{
 
 pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
     let add = krypto::gen_string(16);
-    //TODO: No current state when first initialized
 
+    //TODO: No current state when first initialized
     account {   address:    add,
                 ip:         ip.to_string(),
                 log_nonce:  0 as i64,
                 fuel:       0 as i64,
-                code:       "".to_string(), // New accounts do not have code
+                code:       "".to_string(),
                 state:      "".to_string(),
                 public_key: pk,
+                stack:      "".to_string(),
+                memory:     "".to_string(),
+                pc:         0 as i64,
             }
 }
 

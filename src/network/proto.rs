@@ -64,7 +64,6 @@ pub fn send_account(stream :&mut TcpStream, address: String, conn: &Connection){
     let buf = &account::acc_to_vec(&acc);
     let _ = stream.write(&[4, buf.len() as u8]);
     let _ = stream.write(buf);
-
 }
 
 pub fn send_log(stream :&mut TcpStream, hash: String, conn: &Connection){
