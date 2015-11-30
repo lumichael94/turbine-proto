@@ -10,7 +10,7 @@ use rustc_serialize::Encodable;
 use rustc_serialize::json::{self, Json, Encoder};
 // use rustc_serialize::json::Json
 use std::fs::File;
-use std::io::Read;
+use std::io::{self, Write, Read, BufRead};
 use data::account;
 use postgres::{Connection, SslMode};
 
@@ -29,4 +29,34 @@ pub fn vec_slice_to_string(v: &Vec<&str>) -> Vec<String>{
         vec.push(x.to_string());
     }
     return vec;
+}
+
+//====================================================================
+//USER INPUT FUNCTIONS
+//====================================================================
+
+//Reads and returns user response.
+pub fn read_in() -> String{
+    let stdin = io::stdin();
+    let mut response = String::new();
+    let _ = stdin.read_line(&mut response);
+
+    //Remove "\n" from response
+    let valid = response.len() - 1;
+    response.truncate(valid);
+    return response;
+}
+
+//Reads response to yes or no prompt.
+pub fn read_yn() -> bool{
+    let response: String = read_in();
+    let yn = match &response[..] {
+                "y"|"Y"|"yes"|"Yes"|"YES"   => true,
+                "n"|"N"|"no"|"No"|"NO"      => false,
+                _                           => {
+                                                    println!("Invalid response. Try again.");
+                                                    return read_yn();
+                                                },
+            };
+    return yn;
 }

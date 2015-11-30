@@ -151,14 +151,14 @@ pub fn get_active(conn: &Connection) -> Result<profile, &str> {
 }
 
 // Switches active profile.
-pub fn switch_active(n: &str, conn: &Connection){
+pub fn switch_active(n: &str, conn: &Connection) -> bool{
     let possible_active = get_active(conn);
     match possible_active {
         Err(_) => activate(n, conn),
         Ok(mut p) => {
             p.active = false;
             save_profile(&p, conn);
-            activate(n, conn);
+            activate(n, conn)
         },
     }
 }
@@ -186,10 +186,10 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
 
     //Creating a new profile also activates it.
 
-    match get_active(conn){
+    let _ = match get_active(conn){
         Err(_)  => activate(n, conn),
         Ok(_)   => switch_active(n, conn),
-    }
+    };
 
     return p;
 }
@@ -201,8 +201,14 @@ pub fn trusted_nodes(conn: &Connection) -> Vec<String>{
 }
 
 //Activate profile of a given name
-pub fn activate(name: &str, conn: &Connection){
+pub fn activate(name: &str, conn: &Connection) -> bool{
     println!("\nActivating profile...");
+
+    let exist = profile_exist(name, conn);
+    if !exist{
+        println!("Profile does not exist.");
+        return false;
+    }
 
     //Check if there is a profile activated
     match get_active(conn){
@@ -211,19 +217,21 @@ pub fn activate(name: &str, conn: &Connection){
             p.active = true;
             save_profile(&p, conn);
             println!("Profile activated.");
+            return true;
         },
         Ok(p) => {
             if p.name != name{
                 println!("Profile {:?} is currently active. Deactivating and activating {:?}", p.name, name);
-                switch_active(name, conn);
+                return switch_active(name, conn);
             } else {
                 println!("Profile {:?} is already active.", p.name);
-                let mut p = get_profile(name, conn);
-                p.active = true;
-
-                save_profile(&p, conn);
-                println!("Profile activated.");
+                // let mut p = get_profile(name, conn);
+                // p.active = true;
+                // save_profile(&p, conn);
+                // println!("Profile activated.");
+                return true;
             }
+
         },
     }
 

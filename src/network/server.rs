@@ -10,8 +10,9 @@ use postgres::{Connection, SslMode};
 use util::{helper, krypto};
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
+use std::collections::HashMap;
 
-pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<Vec<Sender<String>>>>){
+pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<HashMap<String, Sender<String>>>>){
 	let add: &str  = &address;
 	let listener = TcpListener::bind(add).unwrap();
 	println!("\nListening started on {}", address);
@@ -23,11 +24,11 @@ pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<Vec
     		Ok(stream) => {
 				let tx = to_main.clone();
 				let (to_threads, from_main): (Sender<String>, Receiver<String>) = mpsc::channel();
-				let mut arc = connected.lock().unwrap();
-				arc.push(to_threads);
+				let mut arc = connected.clone();
+
     			thread::spawn(move || {
 					let _ = stream.set_read_timeout(Some(Duration::new(5,0)));
-    				handle(stream, tx, from_main);
+    				handle(stream, tx, from_main, arc);
     			});
     		}
     	}
@@ -35,34 +36,45 @@ pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<Vec
 }
 
 //Connect to IP address.
-pub fn connect(address: &str, to_main: Sender<String>) -> Option<Sender<String>>{
+pub fn connect(address: &str, to_main: Sender<String>,
+		arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
 	//Downstream, 1 to 1
 	let (to_threads, from_main): (Sender<String>, Receiver<String>) = mpsc::channel();
 	let stream_attempt = TcpStream::connect(address);
 	match stream_attempt {
 		Ok(stream) => {
 			thread::spawn(move||{
-				handle(stream, to_main, from_main);
+				handle(stream, to_main, from_main, arc);
 			});
-			return Some(to_threads);
 		},
 		Err(_) => {
 			println!("Error connecting to peer: {:?}", address);
-			return None;
 		}
 	}
 }
 
-fn handle(mut stream: TcpStream, to_main: Sender<String>, from_main: Receiver<String>) {
+fn handle(mut stream: TcpStream, to_main: Sender<String>, from_main: Receiver<String>,
+	arc:  Arc<Mutex<HashMap<String, Sender<String>>>>) {
+
 	println!("Connected. Passed to handler");
 	let mut proto_buf;
 	let conn = database::connect_db();
 
-	//Handshake
-	let _ = stream.write(&[3, 0]);
 
-	//Main handler loop
+	// Handshake
+	let h_arc = arc.clone();
+	let h_tx = to_main.clone();
+	let attempt = proto::handshake(&mut stream, &conn, h_tx, h_arc);
+	if attempt == None {
+		return;
+	}
+	// Records node address for communicating with main.
+	let address = attempt.unwrap();
+
+	// Main handler loop
 	loop {
+		let connected = arc.clone();
+		let tx = to_main.clone();
 		match from_main.try_recv() {
 			Ok(m) => {
 				println!("Message received from main: {:?}", m);
@@ -73,7 +85,7 @@ fn handle(mut stream: TcpStream, to_main: Sender<String>, from_main: Receiver<St
 				proto_buf = [0; 2];
 				let _ = match stream.read(&mut proto_buf) {
 					Err(e) 	=> panic!("Error on read: {}", e),
-					Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn),
+					Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn, tx, connected),
 				};
 			},
 		}
@@ -100,74 +112,84 @@ pub fn ping(stream: &mut TcpStream)-> bool{
 	return b;
 }
 
-fn match_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection){
+fn match_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection,
+	to_main: Sender<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
 	match incoming[0]{
-		0			=> {
-							//No Response. Wait, then ping.
-							let _ = stream.write(&[1,0]);
-							thread::sleep(Duration::from_millis(500));
-						},
-		1			=> {
-							println!("Incoming message >> Ping");
-							//Sending Pong
-							//TODO: Should only send pong if not blacklisted.
-							let _ = stream.write(&[1,0]);
-							thread::sleep(Duration::from_millis(500));
-						},
-		2			=> {
-							println!("Incoming message >> Pong");
-							//Sending Pong
-							//TODO: Should only send pong if not blacklisted.
-							let _ = stream.write(&[2,0]);
-							thread::sleep(Duration::from_millis(500));
-						},
-		3			=> {
-							println!("Incoming message >> Requesting Handshake");
-							proto::send_handshake(stream, conn);
-						},
-		4			=> {
-							println!("Incoming message >> Sending Handshake");
-							println!("Their handshake: {:?}", read_stream(stream, incoming[1]));
-						},
-		5			=> {
-							println!("Incoming message >> Requesting Logs");
-							let raw_hash = read_stream(stream, incoming[1]);
-							let hash = String::from_utf8(raw_hash).unwrap();
-							proto::send_log(stream, hash, conn);
-						},
-		6			=> {
-							println!("Incoming message >> Sending Logs");
-							println!("Their logs: {:?}", read_stream(stream, incoming[1]));
-						},
-		7			=> {
-							println!("Incoming message >> Requesting Account");
-							let raw_address = read_stream(stream, incoming[1]);
-							let address = String::from_utf8(raw_address).unwrap();
-							proto::send_account(stream, address, conn);
-						},
-		8			=> {
-							println!("Incoming message >> Sending Account");
-							println!("Their account: {:?}", read_stream(stream, incoming[1]));
-						},
-		9			=> {
-							println!("Incoming message >> Requesting State");
-							let raw_hash = read_stream(stream, incoming[1]);
-							let hash = String::from_utf8(raw_hash).unwrap();
-							proto::send_state(stream, hash, conn);
-						},
-		10			=> {
-							println!("Incoming message >> Sending State");
-							println!("Their state: {:?}", read_stream(stream, incoming[1]));
-						},
-		16			=> {
-							println!("Incoming message >> Update State");
-						},
-		17 			=> println!("what is this."),
-		_			=> println!("matches nothing."),
+		0 => {
+			//No Response. Wait, then ping.
+			let _ = stream.write(&[1,0]);
+			thread::sleep(Duration::from_millis(500));
+		},
+		1 => {
+			println!("Incoming message >> Ping");
+			//Sending Pong
+			//TODO: Should only send pong if not blacklisted.
+			let _ = stream.write(&[1,0]);
+			thread::sleep(Duration::from_millis(500));
+		},
+		2 => {
+			println!("Incoming message >> Pong");
+			//Sending Pong
+			//TODO: Should only send pong if not blacklisted.
+			let _ = stream.write(&[2,0]);
+			thread::sleep(Duration::from_millis(500));
+		},
+		3 => {
+			println!("Incoming message >> Requesting ");
+			// println!("Incoming message >> Requesting Handshake");
+			// proto::send_handshake(stream, conn);
+		},
+		4 => {
+			println!("This should not be reached: 4");
+			// println!("Incoming message >> Sending Handshake");
+			// println!("Their handshake: {:?}", read_stream(stream, incoming[1]));
+		},
+		5 => {
+			println!("Incoming message >> Requesting Logs");
+			let raw_hash = read_stream(stream, incoming[1]);
+			let hash = String::from_utf8(raw_hash).unwrap();
+			proto::send_log(stream, hash, conn);
+		},
+		6 => {
+			println!("Incoming message >> Sending Logs");
+			println!("Their logs: {:?}", read_stream(stream, incoming[1]));
+		},
+		7 => {
+			println!("Incoming message >> Requesting Account");
+			let raw_address = read_stream(stream, incoming[1]);
+			let address = String::from_utf8(raw_address).unwrap();
+			proto::send_account(stream, address, conn);
+		},
+		8 => {
+			println!("Incoming message >> Sending Account");
+			println!("Their account: {:?}", read_stream(stream, incoming[1]));
+		},
+		9 => {
+			println!("Incoming message >> Requesting State");
+			let raw_hash = read_stream(stream, incoming[1]);
+			let hash = String::from_utf8(raw_hash).unwrap();
+			proto::send_state(stream, hash, conn);
+		},
+		10 => {
+			println!("Incoming message >> Sending State");
+			println!("Their state: {:?}", read_stream(stream, incoming[1]));
+		},
+
+		// Peer is requesting local status
+		11 => {
+			println!("Incoming message >> Requesting Status");
+			// Asking consensus thread
+			// Sending Status
+		}
+		12 => {
+			println!("Incoming message >> Sending Status");
+			let status: String = String::from_utf8(read_stream(stream, incoming[1])).unwrap();
+		}
+		_  => println!("matches nothing."),
 	}
 }
 
-fn read_stream(stream: &mut TcpStream, length: u8) -> Vec<u8>{
+pub fn read_stream(stream: &mut TcpStream, length: u8) -> Vec<u8>{
 	let mut data_buf = vec![0; length as usize];
 	let _ = stream.read(&mut data_buf[..]);
 	return data_buf;

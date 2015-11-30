@@ -27,6 +27,7 @@ pub struct account{
     pub log_nonce   : i64,
     pub fuel        : i64,
     pub code        : String,
+    pub s_nonce     : i64,
     pub state       : String,
     pub public_key  : Vec<u8>,
     pub stack       : String,
@@ -47,6 +48,7 @@ pub fn save_account(acc: &account, conn: &Connection){
     let nonce = acc.log_nonce;
     let fuel = acc.fuel;
     let code: String = (*acc.code).to_string();
+    let state_nonce: i64 = acc.s_nonce;
     let state: String = (*acc.state).to_string();
     let ref public_key = *acc.public_key;
     let stack: String = (*acc.stack).to_string();
@@ -54,18 +56,20 @@ pub fn save_account(acc: &account, conn: &Connection){
     let pc: i64 = acc.pc;
 
     conn.execute("INSERT INTO account \
-                  (address, ip, log_nonce, fuel, code, state, public_key, stack, memory, pc) \
-                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-                  &[&add, &ip_add, &nonce, &fuel, &code, &state, &public_key, &stack, &memory, &pc]).unwrap();
+                  (address, ip, log_nonce, fuel, code, s_nonce, state, public_key, stack, memory, pc) \
+                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                  &[&add, &ip_add, &nonce, &fuel, &code, &state_nonce,
+                  &state, &public_key, &stack, &memory, &pc]).unwrap();
 }
 
 pub fn create_account_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS account (
-                    address         text,
+                    address         text primary key,
                     ip              text,
                     log_nonce       bigint,
                     fuel            bigint,
                     code            text,
+                    s_nonce         bigint,
                     state           text,
                     public_key      bytea,
                     stack           text,
@@ -93,18 +97,44 @@ pub fn get_account(add: &str, conn: &Connection) -> account{
         log_nonce   : row.get(2),
         fuel        : row.get(3),
         code        : row.get(4),
-        state       : row.get(5),
-        public_key  : row.get(6),
-        stack       : row.get(7),
-        memory      : row.get(8),
-        pc          : row.get(9),
+        s_nonce     : row.get(5),
+        state       : row.get(6),
+        public_key  : row.get(7),
+        stack       : row.get(8),
+        memory      : row.get(9),
+        pc          : row.get(10),
     }
+}
+
+pub fn account_exist(add: &str, conn: &Connection) -> bool{
+    let maybe_stmt = conn.prepare("SELECT * FROM account WHERE address = $1");
+    let stmt = match maybe_stmt{
+        Ok(stmt) => stmt,
+        Err(err) => panic!("Error preparing statement: {:?}", err)
+    };
+    let rows = stmt.query(&[&add]);
+    match rows {
+        Err(_) => false,
+        Ok(r) => {
+            if r.len() != 0 {
+                true
+            } else {
+                false
+            }
+        },
+    }
+}
+
+// Returns the state nonce of an account
+pub fn get_state_nonce(address: &str, conn: &Connection) -> i64{
+    let acc = get_account(address, conn);
+    return acc.s_nonce;
 }
 
 // Retrieves the active account
 pub fn get_active_account(conn: &Connection) -> account {
     let p = profile::get_active(&conn).unwrap();
-    println!("Got active profile");
+    // println!("Got active profile");
     let acc = get_account(&p.account, &conn);
     return acc;
 }
@@ -113,7 +143,7 @@ pub fn acc_to_vec(acc: &account)-> Vec<u8>{
     encode(acc, SizeLimit::Infinite).unwrap()
 }
 
-pub fn vec_to_acc(raw_acc: Vec<u8>) -> account{
+pub fn vec_to_acc(raw_acc: &Vec<u8>) -> account{
     let acc: account = decode(&raw_acc[..]).unwrap();
     return acc;
 }
@@ -127,6 +157,7 @@ pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
                 log_nonce:  0 as i64,
                 fuel:       0 as i64,
                 code:       "".to_string(),
+                s_nonce:    0 as i64,
                 state:      "".to_string(),
                 public_key: pk,
                 stack:      "".to_string(),

@@ -81,6 +81,17 @@ pub fn drop_state_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS state", &[]).unwrap();
 }
 
+// Returns the number of states
+pub fn num_states(conn: &Connection) -> i32{
+    let maybe_stmt = conn.prepare("SELECT * FROM state");
+    let stmt = match maybe_stmt{
+        Ok(stmt) => stmt,
+        Err(err) => panic!("Error preparing statement: {:?}", err),
+    };
+    let rows = stmt.query(&[]).unwrap();
+    return rows.len() as i32;
+}
+
 pub fn get_current_state(conn: &Connection) -> state{
     let maybe_stmt = conn.prepare("SELECT * FROM state WHERE nonce = (select max from(nonce) from tbl)");
     let stmt = match maybe_stmt{

@@ -1,5 +1,3 @@
-#[allow(dead_code, non_camel_case_types)]
-
 pub mod data;
 pub mod network;
 pub mod util;
