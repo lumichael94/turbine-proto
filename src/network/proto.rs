@@ -8,7 +8,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
 use network::server;
-use data::{account, database, log, state, node};
+use data::{account, database, log, state, node, handshake as hs};
 use std::io::{Read, Write};
 use util::helper;
 use postgres::{Connection, SslMode};
@@ -47,41 +47,46 @@ pub fn close_connections(from_threads: Receiver<String>, arc: Arc<Mutex<Vec<Send
 }
 
 //Initiate Handshake.
-pub fn handshake(stream: &mut TcpStream, conn: &Connection, local_stat: Arc<RwLock<(String, String)>>,
-nodes_stat: Arc<RwLock<HashMap<String, node::node>>>) -> Option<String>{
+pub fn handshake(stream: &mut TcpStream, conn: &Connection, main_stat: Arc<RwLock<(String, String)>>,
+    nodes_stat: Arc<RwLock<HashMap<String, node::node>>>) -> Option<hs::handshake>{
 
-    // Retrieving and sending active account
+    // Retrieves information to form handshake struct
     let my_acc: account::account = account::get_active_account(conn);
-    let buf = &account::acc_to_vec(&my_acc);
+    let mut m_stat = String::new();
+    let (m_stat, _) = main_stat.read().unwrap().clone();
+
+    // Clone for sending
+
+    let hs_acc = my_acc.clone();
+    let local_hs = hs::handshake {
+        status:  m_stat,
+        address: my_acc.address,
+        s_hash:  my_acc.state,
+        s_nonce: my_acc.s_nonce,
+        account: hs_acc,
+    };
+
+    let buf = &hs::hs_to_vec(&local_hs);
+
+    // Sending node struct
     let _ = stream.write(&[3, buf.len() as u8]);
     let _ = stream.write(buf);
 
     let mut buffer = [0; 2];
     let _ = stream.read(&mut buffer);
+
     // If no response, try twice more, then fail.
     for _ in 0..1 {
         // If a node is sending handshake...
         if buffer[0] == 3 {
-            let raw_account = server::read_stream(stream, buffer[1]);
-            let passed = account::check_account(raw_account);
-
-            match passed {
-                // trying again
-                None => continue,
-                // Valid Account
-                Some(acc) => {
-                    // let h_arc = arc.clone();
-                    // let mut connected = h_arc.write().unwrap();
-                    let add = &acc.address;
-                    // connected.insert(add.to_string(), to_main);
-                    return Some(add.to_string());
-                },
-            }
+            let raw_hs = server::read_stream(stream, buffer[1]);
+            let node_hs =  hs::vec_to_hs(&raw_hs);
+            return Some(node_hs);
         }
-        // or else try again.
+    }
+        // Pause, try again.
         thread::sleep(Duration::from_millis(500));
         let _ = stream.read(&mut buffer);
-    }
     return None;
 }
 

@@ -76,8 +76,22 @@ nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<Hash
 	if attempt == None {
 		return;
 	}
-	// Records node address for communicating with main.
-	let address = attempt.unwrap();
+	// Appending node into node status arc.
+	let node_hs = attempt.unwrap();
+    let node_add = node_hs.address;
+    let node_acc = node_hs.account;
+
+    // This is mutable for further updating.
+    let mut nde = node::node{
+        status:     node_hs.status,
+        t_status:   "READY".to_string(),
+        acc_hash:   node_add.clone(),
+        s_hash:     node_acc.state,
+        s_nonce:    node_acc.s_nonce,
+    };
+
+    let hs_arc = nodes_stat.clone();
+    hs_arc.write().unwrap().insert(node_add, nde.clone());
 
 	// Main handler loop
 	loop {
@@ -92,11 +106,8 @@ nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<Hash
 		let _ = match stream.read(&mut proto_buf) {
 			Err(e) 	=> panic!("Error on read: {}", e),
 
-			Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn, m_stat,
-				n_stat, c_accs, c_logs),
+			Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn, m_stat, n_stat, c_accs, c_logs),
 		};
-			// },
-		// }
 	}
 	//Finish and exit
 	println!("Finished reading from stream.");
