@@ -64,7 +64,7 @@ pub fn handshake(stream: &mut TcpStream, conn: &Connection, to_main: Sender<Stri
         // If a node is sending handshake...
         if buffer[0] == 3 {
             let raw_account = server::read_stream(stream, buffer[1]);
-            let passed = consensus::check_account(raw_account);
+            let passed = account::check_account(raw_account);
 
             match passed {
                 // trying again

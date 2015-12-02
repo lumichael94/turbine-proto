@@ -2,14 +2,16 @@ use std::thread;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use network::{server, proto};
-use data::{account, state, database, log, profile};
+use data::{account, state, database, log, profile, node};
 use util::{helper, genesis};
 use postgres::Connection;
 use std::io::BufRead;
+use std::sync::RwLock;
 use std::sync::mpsc::{self, Sender, Receiver};
 use main::consensus;
 use std::collections::HashMap;
 use std::time::Duration;
+use vm::env;
 
 //====================================================================
 // COMMAND FUNCTIONS
@@ -158,7 +160,17 @@ pub fn turbo(){
 
     database::close_db(conn);
 
+    // Initializing Arcs
+    // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
+    let nodes_stat: Arc<RwLock<HashMap<String, node::node>>> = Arc::new(RwLock::new(HashMap::new()));
+    // Local Status. String<Status>
+    let local_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
+    // Current Accounts. HashMap<Address, Account>
+    let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
+    // Current Logs. HashMap<Hash, Log>
+    let curr_logs: Arc<RwLock<HashMap<String, log::log>>> = Arc::new(RwLock::new(HashMap::new()));
+
     //Starts consensus loop
     println!("Starting consensus.");
-    consensus::consensus_loop(from_threads, connected);
+    consensus::consensus_loop(nodes_stat, local_stat, curr_accs, curr_logs);
 }

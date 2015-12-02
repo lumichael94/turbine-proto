@@ -2,36 +2,72 @@ use std::os;
 use std::sync;
 
 use network::{server, proto};
-use data::{account, state, database, log};
+use data::{account, state, database, log, node};
 use vm::env;
+use std::time::Duration;
+use std::thread;
 use util::{helper, krypto};
 use postgres::{Connection, SslMode};
 use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 //====================================================================
 // GENERAL CONSENSUS FUNCTIONS
 //====================================================================
 
 // Main consensus function
-pub fn consensus_loop(from_threads: Receiver<String>,
-    arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
+// pub fn consensus_loop(from_threads: Receiver<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
+pub fn consensus_loop(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>,
+    local_stat: Arc<RwLock<(String, String)>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+    curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
     let conn = database::connect_db();
 
-    // Listen Loop
-    loop {
-        update_connected();
-        let trusted = arc.clone();
+    loop{
+        let local_state = state::get_current_state(&conn).hash;
+        // Change local status to proposing.
+        let mut stat = local_stat.write().unwrap();
+        let listen: String = "LISTENING".to_string();
+        *stat = (listen, local_state.to_string());
+        thread::sleep(Duration::from_millis(500));
 
-        // Logs and accounts of the current state.
-        // Only applies to logs/accounts that were modified/participated.
-        let s_logs: Vec<String> = Vec::new();
-        let s_accounts: Vec<String> = Vec::new();
+        let nde = nodes_stat.clone();
+        if !should_propose(nde, &conn){
+            // Sleep briefly and recheck.
+            thread::sleep(Duration::from_millis(500));
+            continue;
+        } else {
+            // Proposal Loop
+            loop {
+                let poss_accs = curr_accs.clone();
+                let ndes = nodes_stat.clone();
+                let poss_logs = curr_logs.clone();
+                let poss_state: state::state = proposing(ndes, poss_accs, poss_logs, &conn);
 
-        if should_propose(trusted, &conn){break;}
+                // Change local status to proposing.
+                let propose: String = "PROPOSING".to_string();
+                *stat = (propose, (&poss_state.hash).to_string());
+
+                if !should_commit(nodes_stat.clone()){
+                    // Sleep briefly, update list, and propose again.
+                    thread::sleep(Duration::from_millis(500));
+                    continue;
+                } else {
+                    // Committing
+                    state::save_state(&poss_state, &conn);
+                    let commit: String = "COMMITTED".to_string();
+                    *stat = (commit, (&poss_state.hash).to_string());
+
+                    // Waiting for the network to synchronize
+                    while !should_listen(nodes_stat.clone()){
+                        thread::sleep(Duration::from_millis(500));
+                    }
+                }
+            }
+        }
     }
+    // TODO: Makes this reachable.
     database::close_db(conn);
 }
 
@@ -48,142 +84,124 @@ pub fn consensus_loop(from_threads: Receiver<String>,
 // Status only applies if node is working on its most current state. Otherwise, it is perpetually
 // listening.
 
-// Checking whether the local node status should propose
-pub fn should_propose(arc: Arc<Mutex<HashMap<String, Sender<String>>>>, conn: &Connection) -> bool{
+//** Pre-phase Checking **//
+//TODO: Condense into single functions
+
+//Checking if the local node should listen
+pub fn should_listen(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>)-> bool{
     // Determine majority state, count
-    let mut state_map: HashMap<String, i32> = HashMap::new();
-    let nodes: HashMap<String, Sender<String>> = arc.lock().unwrap().clone();
-    let n_nodes = nodes.len() as i32;
+    let arc = nodes_stat.clone();
+    let nodes = arc.read().unwrap();
+    let h_map = nodes.clone();
 
-    for (node_add, _ ) in nodes {
-        let node_acc = account::get_account(&node_add, conn);
-        let node_state = node_acc.state;
-        let contains: bool = state_map.contains_key(&node_state);
+    let mut counter = 0 as i32;
+    let size = nodes.len() as i32;
 
-        if contains {
-            let counter = state_map.get(&node_state).unwrap() + 1;
-            state_map.insert(node_state, counter);
-        } else {
-            state_map.insert(node_state, 0);
+    for (_, nds) in h_map {
+        if nds.t_status == "LISTEN"{
+            counter+=1;
         }
-    }
-    // Find popular state
-    let mut max_pop: i32 = 0;
-    let mut max_state = String::new();
-    for (state_hash, state_pop) in state_map{
-        if state_pop > max_pop {
-            max_state = state_hash;
-            max_pop = state_pop;
+   }
+    let threshold = 0.7 as i32;
+    let percentage = counter / size;
+    if percentage > threshold {return true};
+    return false;
+}
+
+// Checking if the local node should propose
+pub fn should_propose(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, conn: &Connection) -> bool{
+    // Determine majority state, count
+    let arc = nodes_stat.clone();
+    let nodes = arc.read().unwrap();
+    let h_map = nodes.clone();
+
+    // Retrieve last committed state
+    let local_state = state::get_current_state(&conn).hash;
+    let mut counter = 0 as i32;
+    let size = nodes.len() as i32;
+
+    for (_, nde) in h_map {
+        let node_state = nde.s_hash;
+        if node_state == local_state{
+            counter+=1;
         }
-    }
-    // If maximum population is more than 80% of trusted nodes and node state is equal to
+   }
+
+    // If counter is more than 70% of trusted nodes and node state is equal to
     // the current state, then local phase = "proposing"
-    let local_state: String = state::get_current_state(&conn).hash;
-    let threshold = 0.8 as i32;
-    let percentage = max_pop / n_nodes;
-    if (max_state == local_state) && (percentage > threshold){
-        return true;
-    }
+    // let n_nodes = nodes_stat.read().unwrap().len() as i32;
+    let threshold = 0.7 as i32;
+    let percentage = counter / size;
+    if percentage > threshold {return true};
     return false;
 }
 
-// Checking whether the local node status should commit the current state
-pub fn should_commit(arc: Arc<Mutex<HashMap<String, Sender<String>>>>, conn: &Connection) -> bool{
+// Checking if the local node should commit the current state
+// Broadcasts state with peers and determine state reward distribution.
+pub fn should_commit(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>) -> bool{
+    // Determine majority state, count
+    let arc = nodes_stat.clone();
+    let nodes = arc.read().unwrap();
+    let h_map = nodes.clone();
+
+    let mut counter = 0 as i32;
+    let size = nodes.len() as i32;
+
+    for (_, nds) in h_map {
+        if nds.t_status == "COMMIT"{
+            counter+=1;
+        }
+   }
+    let threshold = 0.7 as i32;
+    let percentage = counter / size;
+    if percentage > threshold {return true};
     return false;
 }
+
+// Checking if the local node should execute the current logs and accounts
+pub fn should_execute(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>) -> bool{
+    // Determine majority state, count
+    let arc = nodes_stat.clone();
+    let nodes = arc.read().unwrap();
+    let h_map = nodes.clone();
+
+    let mut counter = 0 as i32;
+    let size = nodes.len() as i32;
+
+    for (_, nds) in h_map {
+        if nds.t_status == "EXECUTE"{
+            counter+=1;
+        }
+   }
+    let threshold = 0.7 as i32;
+    let percentage = counter / size;
+    if percentage > threshold {return true};
+    return false;
+}
+
+//** Phase Functions **//
 
 // Proposing Phase
-pub fn proposing(){}
-
-// Committing Phase
-pub fn committing(){}
-
-// OpCodes from thread to consensus loop.
-pub fn do_thread_code(thread_code: String){
-    let data: Vec<String> = helper::slice_to_vec(&thread_code);
-    let code: String = data.get(0).unwrap().to_string();
-
-    match &code[..] {
-        // Node arrived at a final state and voting.
-        "voting" => {
-            println!("Node is voting.");
-        },
-        // Node has finished voting and committed a state.
-        "voted" => {
-            println!("Node has voted.");
-        },
-        "" => {},
-        _ =>{},
+// Finalizing accounts and logs of current state. Does not accept accounts and logs
+// except from nodes that are proposing. Loads VM and executes log code. Computes
+// state from VM.
+// Input: connected, local_status, current_accounts, current_logs
+pub fn proposing(nodes_stat:  Arc<RwLock<HashMap<String, node::node>>>,
+    curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+    curr_logs: Arc<RwLock<HashMap<String, log::log>>>,
+    conn: &Connection) -> state::state{
+    // Form consensus on accounts and logs of current state with peer nodes.
+    loop{
+        let agreement: i32 = 0;
     }
-}
-
-
-
-//TODO: Update connected nodes. Remove unresponsive nodes.
-pub fn update_connected(){
+    let poss_state = env::propose_state(curr_accs, curr_logs);
+    return poss_state;
 
 }
 
-// Checking Functions
-//=====================================
-
-// pub fn check_state(raw_s: Vec<u8>) -> bool{
-//     let conn: Connection = database::connect_db();
-//
-//     let s = state::vec_to_state(raw_s);
-//     let local_s = state::get_state(&s.hash, &conn);
-//
-//     database::close_db(conn);
-// }
-
-// Checks an account
-pub fn check_account(raw_acc: Vec<u8>) -> Option<account::account>{
-    let conn: Connection = database::connect_db();
-    let node_acc = account::vec_to_acc(&raw_acc);
-    let node_address = node_acc.address;
-    let node_log_n = node_acc.log_nonce;
-
-    // If account exists locally, compare local and received accounts
-    if account::account_exist(&node_address, &conn){
-        let local_acc = account::get_account(&node_address, &conn);
-        // If node has an outdated nonce, reject the node.
-        if node_log_n < local_acc.log_nonce{
-            database::close_db(conn);
-            return None;
-        }
-    }
-
-    // TODO: Converting again due to borrowing. Fix
-    let return_acc = account::vec_to_acc(&raw_acc);
-    account::save_account(&return_acc, &conn);
-    database::close_db(conn);
-    Some(return_acc)
-}
-
-// Update Functions
-//=====================================
-
-pub fn update_state(){
-
-}
-
-pub fn update_account(){
-
-}
-
-pub fn update_log(){
-
-}
-
-//Careful on updating log. Logs are immutable unless a mistake has been made.
-// pub fn update_log(){
-//
-// }
-
-//Local VM Functions
-pub fn execute_log(){
-
-}
+//====================================================================
+// Utility Functions
+//====================================================================
 
 pub fn rollback_state(){
 

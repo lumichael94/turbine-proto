@@ -8,32 +8,71 @@ use vm::opCodes::{opCode, opCode_param, map_to_fuel, map_to_fn};
 use vm::opCodes::opCode::*;
 use vm::decoder::{decode, map_to_string};
 use postgres::{Connection, SslMode};
-use data::log::log;
+use data::log;
+use data::state::state;
 use data::{account, database, profile};
 use util::{krypto, helper};
 use self::secp256k1::*;
 use self::secp256k1::key::*;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 
 pub struct env {
-    pub env_acc     : account::account,
-    pub env_log     : log,
-    pub stack       : Vec<i32>,
-    pub pc          : i64,
-    pub memory      : Vec<i32>,
-    pub code_hash   : String,
+    pub origin      : account::account,
+    pub targets     : Vec<account::account>,
+    pub env_log     : log::log,
+    pub hash        : String,       // Also known as proof
 }
 
-//TODO: Implement
-// pub fn init_from_slice(){
-//
-// }
+// TODO: Change output env into Option<env>
+// Initializes an env from a log and its traits
+pub fn env_from_log(curr_accs: Arc<RwLock<HashMap<String, account::account>>>, l: log::log) -> env{
+    // TODO: Check if origin account is retrieved correctly
+    let accs = curr_accs.read().unwrap();
+    let env_origin = accs.get(&l.origin).unwrap().clone();
+    return env{
+        origin:     env_origin,
+        targets:    Vec::new(),
+        env_log:    l,
+        hash:       "".to_string(),
+    }
+}
 
-pub fn execute_code(sign: bool, mut e: &mut env,
-    instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> log{
+pub fn propose_state(curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+    logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
+
+    let log_hmap: HashMap<String, log::log> = logs.read().unwrap().clone();
+
+    // Executing Logs
+    for (l_hash, l) in log_hmap{
+        let code: Vec<String> = helper::slice_to_vec(&l.code);
+        let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
+        let arc = curr_accs.clone();
+        let mut e: env = env_from_log(arc, l);
+        let env_hash: String = execute_env(true, &mut e, &instr_set);
+        if l_hash != env_hash{
+            // TODO: Invalid Log, Request from trusted nodes.
+            println!("There is an invalid log.");
+        }
+    }
+
+    return state {
+        nonce:      0 as i64,
+        hash:       "".to_string(),
+        prev_state: "".to_string(),
+        acc_hash:   "".to_string(),
+        l_hash:     "".to_string(),
+        fuel_exp:   0 as i64,
+    };
+}
+
+pub fn execute_env(sign: bool, e: &mut env,
+    instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> String{
     loop {
-        let ref instr: opCode       = (instr_set.0)[e.pc as usize];
-        let ref param: Vec<String>  = (instr_set.1)[e.pc as usize];
-        let ref fuel_cost: i64      = (instr_set.2)[e.pc as usize];
+        // TODO: Not sure if assigning a variable as e.origin.pc will destroy reference
+        let ref instr: opCode       = (instr_set.0)[e.origin.pc as usize];
+        let ref param: Vec<String>  = (instr_set.1)[e.origin.pc as usize];
+        // let ref fuel_cost: i64      = (instr_set.2)[e.origin.pc as usize];
 
         // println!("\n\nExecute opCode: {}", map_to_string(&instr));
         // println!("With params of: {:?}", param);
@@ -44,125 +83,93 @@ pub fn execute_code(sign: bool, mut e: &mut env,
         // println!("This is the stack: {:?}", e.stack);
         // println!("This is the memory: {:?}\n\n", e.memory);
         // println!("This is the counter: {:?}", e.pc);
-        if e.pc < 0 {
+
+        if e.origin.pc < 0 {
             break;
         }
-        e.pc+=1;
+        e.origin.pc+=1;
     }
-    log_from_env(e, sign)
+    e.hash.to_string()
 }
 
 pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut e: &mut env){
 
     match instr {
         &ADD     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "ADD").to_string();
+            e.hash = krypto::string_hash(&e.hash, "ADD").to_string();
             // e.fuel -= ;
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             // map_to_fn(opCode_param::ADD(&mut e.stack, &mut e.memory, n));
             map_to_fn(opCode_param::ADD(e, n));
         },
         &MUL     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "MUL").to_string();
+            e.hash = krypto::string_hash(&e.hash, "MUL").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::MUL(e, n));
         },
         &DIV     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "DIV").to_string();
+            e.hash = krypto::string_hash(&e.hash, "DIV").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::DIV(e, n));
         },
         &MOD     =>{
-            e.code_hash = krypto::string_hash(&e.code_hash, "MOD").to_string();
+            e.hash = krypto::string_hash(&e.hash, "MOD").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::MOD(e, n));
         },
         &SUB     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "SUB").to_string();
+            e.hash = krypto::string_hash(&e.hash, "SUB").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::SUB(e, n));
         },
         &POP     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "POP").to_string();
+            e.hash = krypto::string_hash(&e.hash, "POP").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::POP(e, n));
         },
 
         &SEND     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "SEND").to_string();
+            e.hash = krypto::string_hash(&e.hash, "SEND").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::SEND(e, n));
         },
 
         &JUMP     => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "JUMP").to_string();
+            e.hash = krypto::string_hash(&e.hash, "JUMP").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::JUMP(e, n));
         },
 
         &LOAD    =>{
-            e.code_hash = krypto::string_hash(&e.code_hash, "LOAD").to_string();
+            e.hash = krypto::string_hash(&e.hash, "LOAD").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::LOAD(e, n));
         },
         &PUSH    =>{
-            e.code_hash = krypto::string_hash(&e.code_hash, "PUSH").to_string();
+            e.hash = krypto::string_hash(&e.hash, "PUSH").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::PUSH(e, n));
         },
         &STOP    =>{
-            e.code_hash = krypto::string_hash(&e.code_hash, "STOP").to_string();
+            e.hash = krypto::string_hash(&e.hash, "STOP").to_string();
             map_to_fn(opCode_param::STOP(e));
         },
         &ERROR   => {
-            e.code_hash = krypto::string_hash(&e.code_hash, "ERROR").to_string();
+            e.hash = krypto::string_hash(&e.hash, "ERROR").to_string();
             map_to_fn(opCode_param::ERROR(e));
         },
     }
 }
 
 pub fn new_proof(env: &mut env) -> String{
-    let a = krypto::string_hash(&env.code_hash, &env.env_acc.address);
+    let a = krypto::string_hash(&env.hash, &env.origin.address);
     return krypto::string_hash(&a, &(env.env_log.fuel).to_string());
 }
 
-pub fn new_env(acc: account::account, l: log) -> env{
-    env{    env_acc:        acc,
-            env_log:        l,
-            stack:          Vec::new(),
-            pc:             0,
-            memory:         Vec::new(),
-            code_hash:      "".to_string(),
-    }
-}
-
-//Local account creating log. Not from outside sources.
-pub fn create_log (c: &str, targ: &str, f: i64, conn: &Connection) -> log{
-    let curr_acc  = account::get_active_account(conn);
-    let unsigned_l = log{   hash    :   "".to_string(),
-                            state   :   "".to_string(),
-                            nonce   :   curr_acc.log_nonce + 1,
-                            origin  :   curr_acc.address,
-                            target  :   targ.to_string(),
-                            fuel    :   f,
-                            code    :   c.to_string(),
-                            sig     :   Vec::new(),
-                            proof   :   "".to_string(),
-                        };
-    //TODO: Running into borrowing problems. Kludge.
-    let env_acc = account::get_active_account(conn);
-    let mut env = new_env(env_acc, unsigned_l);
-
-    let code: Vec<String> = helper::slice_to_vec(&env.env_acc.code);
-    let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
-    execute_code(true, &mut env, &instr_set)
-
-}
-
 //The sign parameter asks whether or not the local account should sign.
-pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
-    let l_state:    String  = (*env.env_acc.state).to_string();
-    let l_nonce:    i64     = env.env_acc.log_nonce;
+pub fn log_from_env(mut env: &mut env, sign: bool) -> log::log{
+    let l_state:    String  = (*env.origin.state).to_string();
+    let l_nonce:    i64     = env.origin.log_nonce;
     let l_origin:   String  = (*env.env_log.hash).to_string();
     let l_target:   String  = (*env.env_log.target).to_string();
     let l_fuel:     i64     = env.env_log.fuel;
@@ -191,7 +198,7 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
         l_sig = Vec::new();
     }
 
-    log{    hash:       a.to_string(),
+    log::log{    hash:       a.to_string(),
             state:      l_state,
             nonce:      l_nonce,
             origin:     l_origin,
@@ -199,7 +206,6 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
             fuel:       l_fuel,
             code:       l_code,
             sig:        l_sig,
-            proof:      l_proof,
         }
 }
 
@@ -223,22 +229,22 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
   //   let mut env = env{stack: Vec::new(), pc: 0, memory: Vec::new(), code_hash: "".to_string()};
   //   let x: i32 = 7;
   //   let y: i32 = 2;
-  //   map_to_fn(opCode_param::LOAD(&mut env.stack, x));
-  //   map_to_fn(opCode_param::LOAD(&mut env.stack, y));
-  //   map_to_fn(opCode_param::POP(&mut env.stack, &mut env.memory, 2));
+  //   map_to_fn(opCode_param::LOAD(&mut env.origin.stack, x));
+  //   map_to_fn(opCode_param::LOAD(&mut env.origin.stack, y));
+  //   map_to_fn(opCode_param::POP(&mut env.origin.stack, &mut env.memory, 2));
   //   println!("\n\nLoaded variables");
-  //   println!("This is the stack: {:?}", env.stack);
+  //   println!("This is the stack: {:?}", env.origin.stack);
   //   println!("This is the memory: {:?}\n\n", env.memory);
   //
-  //   map_to_fn(opCode_param::MOD(&mut env.stack, &mut env.memory, 2));
+  //   map_to_fn(opCode_param::MOD(&mut env.origin.stack, &mut env.memory, 2));
   //
-  //   println!("This is the stack: {:?}", env.stack);
+  //   println!("This is the stack: {:?}", env.origin.stack);
   //   println!("This is the memory: {:?}", env.memory);
   //
-  //   map_to_fn(opCode_param::PUSH(&mut env.stack, &mut env.memory, 1));
+  //   map_to_fn(opCode_param::PUSH(&mut env.origin.stack, &mut env.memory, 1));
   //
   //   println!("\n\nOperation finished.");
-  //   println!("This is the stack: {:?}", env.stack);
+  //   println!("This is the stack: {:?}", env.origin.stack);
   //   println!("This is the memory: {:?}", env.memory);
   //
   //   map_to_fn(opCode_param::STOP(&mut env.pc));
@@ -276,7 +282,7 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
 //
 //     let hash: String = env.code_hash;
 //     println!("\n\n\nCode hash: {:?}", hash);
-//     println!("Stack: {:?}", env.stack);
+//     println!("Stack: {:?}", env.origin.stack);
 //     println!("Memory: {:?}", env.memory);
 //     println!("PC: {:?}", env.pc);
 //     println!("Origin: {:?}", l.origin);
@@ -284,4 +290,3 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log{
 //     println!("Proof: {:?}\n\n\n", l.proof);
 //
 //   }
-// }

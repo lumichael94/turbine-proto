@@ -20,7 +20,7 @@ use rustc_serialize::{Encodable};
 use rustc_serialize::json::{self, Json, Encoder};
 use data::{state, profile, database};
 
-#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+#[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
 pub struct account{
     pub address     : String,
     pub ip          : String,
@@ -30,8 +30,8 @@ pub struct account{
     pub s_nonce     : i64,
     pub state       : String,
     pub public_key  : Vec<u8>,
-    pub stack       : String,
-    pub memory      : String,
+    pub stack       : Vec<u8>,
+    pub memory      : Vec<u8>,
     pub pc          : i64,
 }
 
@@ -51,8 +51,8 @@ pub fn save_account(acc: &account, conn: &Connection){
     let state_nonce: i64 = acc.s_nonce;
     let state: String = (*acc.state).to_string();
     let ref public_key = *acc.public_key;
-    let stack: String = (*acc.stack).to_string();
-    let memory: String = (*acc.memory).to_string();
+    let ref stack = *acc.stack;
+    let ref memory = *acc.memory;
     let pc: i64 = acc.pc;
 
     conn.execute("INSERT INTO account \
@@ -72,8 +72,8 @@ pub fn create_account_table(conn: &Connection){
                     s_nonce         bigint,
                     state           text,
                     public_key      bytea,
-                    stack           text,
-                    memory          text,
+                    stack           bytea,
+                    memory          bytea,
                     pc              bigint
                   )", &[]).unwrap();
 }
@@ -160,10 +160,34 @@ pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
                 s_nonce:    0 as i64,
                 state:      "".to_string(),
                 public_key: pk,
-                stack:      "".to_string(),
-                memory:     "".to_string(),
+                stack:      Vec::new(),
+                memory:     Vec::new(),
                 pc:         0 as i64,
             }
+}
+
+// Checks an account
+pub fn check_account(raw_acc: Vec<u8>) -> Option<account>{
+    let conn: Connection = database::connect_db();
+    let node_acc = vec_to_acc(&raw_acc);
+    let node_address = node_acc.address;
+    let node_log_n = node_acc.log_nonce;
+
+    // If account exists locally, compare local and received accounts
+    if account_exist(&node_address, &conn){
+        let local_acc = get_account(&node_address, &conn);
+        // If node has an outdated nonce, reject the node.
+        if node_log_n < local_acc.log_nonce{
+            database::close_db(conn);
+            return None;
+        }
+    }
+
+    // TODO: Converting again due to borrowing. Fix
+    let return_acc = vec_to_acc(&raw_acc);
+    save_account(&return_acc, &conn);
+    database::close_db(conn);
+    Some(return_acc)
 }
 
 //Tests

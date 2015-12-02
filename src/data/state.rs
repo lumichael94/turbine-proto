@@ -20,24 +20,24 @@ use data::log::log;
 pub struct state {
     pub nonce           :   i64,
     pub hash            :   String,
-    pub prev_state      :   String,     //Hash of previous state
-    pub log_hash        :   String,
-    pub proof_hash      :   String,
+    pub prev_state      :   String,    // Hash of previous state
+    pub acc_hash        :   String,    // Hash of accounts
+    pub l_hash          :   String,    // Hash of logs
     pub fuel_exp        :   i64,
 }
 
 pub fn save_state(s: &state, conn: &Connection){
-    let nonce: i64 = s.nonce;
-    let hash: String = (*s.hash).to_string();
-    let prev_state: String = (*s.prev_state).to_string();
-    let log_hash: String = (*s.log_hash).to_string();
-    let proof_hash: String = (*s.proof_hash).to_string();
-    let fuel_exp: i64 = s.fuel_exp;
+    let nonce: i64 =    s.nonce;
+    let hash: String =  (*s.hash).to_string();
+    let acc_hash =      (*s.acc_hash).to_string();
+    let l_hash =        (*s.l_hash).to_string();
+    let prev_state =    (*s.prev_state).to_string();
+    let fuel_exp =      s.fuel_exp;
 
     conn.execute("INSERT INTO state \
-                  (nonce, hash, prev_state,log_hash, proof_hash, fuel_exp) \
+                  (nonce, hash, prev_state, acc_hash, l_hash, fuel_exp) \
                   VALUES ($1, $2, $3, $4, $5, $6)",
-                  &[&nonce, &hash, &prev_state, &log_hash, &proof_hash, &fuel_exp]).unwrap();
+                  &[&nonce, &hash, &prev_state, &acc_hash, &l_hash, &fuel_exp]).unwrap();
 }
 
 pub fn get_state(hash: &str, conn: &Connection) -> state{
@@ -53,8 +53,8 @@ pub fn get_state(hash: &str, conn: &Connection) -> state{
         nonce:      row.get(0),
         hash:       row.get(1),
         prev_state: row.get(2),
-        log_hash:   row.get(3),
-        proof_hash: row.get(4),
+        acc_hash:   row.get(3),
+        l_hash:     row.get(4),
         fuel_exp:   row.get(5),
     }
 }
@@ -106,8 +106,8 @@ pub fn get_current_state(conn: &Connection) -> state{
             nonce:      row.get(0),
             hash:       row.get(1),
             prev_state: row.get(2),
-            log_hash:   row.get(3),
-            proof_hash: row.get(4),
+            acc_hash:   row.get(3),
+            l_hash:     row.get(4),
             fuel_exp:   row.get(5),
     }
 }

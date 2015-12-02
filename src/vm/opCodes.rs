@@ -8,17 +8,9 @@ pub enum opCode {
     ADD, MUL, DIV, MOD, SUB,
     POP, LOAD, PUSH, STOP, ERROR,
     SEND, JUMP,
-    // ADDRESS,
-    // STORE, STORE8, JUMP, FUEL, JUMPDEST, PC
-    // , GUAGE, ORIGIN,
-    // DUP, SWAP,CREATE, CALL, RETURN,
 }
 
 pub enum opCode_param<'a> {
-
-    //Stop and Arithmetic Operations
-    // STOP,
-    // ADD(&'a mut Vec<i32>, &'a mut Vec<i32>, i32),
     ADD(&'a mut env, i32),
     SUB(&'a mut env, i32),
     POP(&'a mut env, i32),
@@ -27,42 +19,14 @@ pub enum opCode_param<'a> {
     DIV(&'a mut env, i32),
     MOD(&'a mut env, i32),
     LOAD(&'a mut env, i32),
-    // ADDRESS(&'a mut env, String),
-
     SEND(&'a mut env, i32),
     JUMP(&'a mut env, i32),
-
     STOP(&'a mut env),
     ERROR(&'a mut env),
-
-    //Comparison and Bitwise Logic Operations
-    // LESS, GREAT, EQUAL, ISZERO, AND,
-    // OR, XOR, NOT, BYTE,
-
-    //Environment Information
-    // ADDRESS, GUAGE, ORIGIN,
-
-    //state Information
-    // stateHASH, TIMESTAMP, BNONCE, BGUAGE,
-
-    //Stack, Memory, Storage, and Flow Operations
-    // POP, LOAD, STORE, STORE8, JUMP,
-    // JUMPIF, PC, MSIZE, GAS, JUMPDEST,
-
-    //Using an 64 word size
-    //Push, Duplication, Exchange Operations
-    // PUSH1, PUSH2, PUSH3, PUSH4, PUSH5, PUSH6, PUSH7, PUSH8,
-    // DUP1, DUP2, DUP3, DUP4, DUP5, DUP6, DUP7, DUP8,
-    // SWAP1, SWAP2, SWAP3, SWAP4, SWAP5, SWAP6, SWAP7, SWAP8,
-
-    //System Operations
-    // CREATE, CALL, CALLCODE, RETURN, SUICIDE,
 }
 
 pub fn map_to_fn(code: opCode_param) {
     match code {
-
-        // opCode_param::ADD(stack, memory, n)      => add(stack, memory, n),
         opCode_param::ADD(env, n)      => add(env, n),
         opCode_param::SUB(env, n)      => sub(env, n),
         opCode_param::MUL(env, n)      => mul(env, n),
@@ -73,11 +37,8 @@ pub fn map_to_fn(code: opCode_param) {
         opCode_param::LOAD(env, word)          => load(env, word),
         opCode_param::PUSH(env, n)     => push(env, n),
         opCode_param::POP(env, n)      => pop(env, n),
-
         opCode_param::SEND(env, n)    => send(env, n),
         opCode_param::JUMP(env, n)    => jump(env, n),
-        // opCode_param::ADDRESS(env, address)    => address(env, address),
-
         opCode_param::STOP(env)       => stop(env),
         opCode_param::ERROR(env)      => error(env),
 
@@ -113,29 +74,29 @@ pub fn map_to_fn(code: opCode_param) {
 
 fn add(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
-        let mut ans = env.memory.pop().unwrap();
+        let mut ans = env.origin.memory.pop().unwrap();
         env.env_log.fuel -= map_to_fuel(opCode::ADD);
-        for i in 0..(n-1){
-            ans += env.memory.pop().unwrap();
+        for _ in 0..(n-1){
+            ans += env.origin.memory.pop().unwrap();
         }
-        env.memory.push(ans);
-        // println!("ADD: {}", env.memory.last().unwrap());
+        env.origin.memory.push(ans);
+        // println!("ADD: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn sub(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
         env.env_log.fuel -= map_to_fuel(opCode::SUB);
-        let mut ans = env.memory.pop().unwrap();
-        for i in 0..(n-1){
-            ans -= env.memory.pop().unwrap();
+        let mut ans = env.origin.memory.pop().unwrap();
+        for _ in 0..(n-1){
+            ans -= env.origin.memory.pop().unwrap();
         }
-        env.memory.push(ans);
-        // println!("SUB: {}", env.memory.last().unwrap());
+        env.origin.memory.push(ans);
+        // println!("SUB: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 
 
@@ -144,14 +105,14 @@ fn sub(mut env: &mut env, n: i32){
 fn mul(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MUL){
         env.env_log.fuel -= map_to_fuel(opCode::MUL);
-        let mut ans = env.memory.pop().unwrap();
-        for i in 0..(n-1){
-            ans *= env.memory.pop().unwrap();
+        let mut ans = env.origin.memory.pop().unwrap();
+        for _ in 0..(n-1){
+            ans *= env.origin.memory.pop().unwrap();
         }
-        env.memory.push(ans);
-        // println!("MUL: {}", env.memory.last().unwrap());
+        env.origin.memory.push(ans);
+        // println!("MUL: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 
 }
@@ -159,28 +120,28 @@ fn mul(mut env: &mut env, n: i32){
 fn div(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::DIV){
         env.env_log.fuel -= map_to_fuel(opCode::DIV);
-        let mut ans = env.memory.pop().unwrap();
-        for i in 0..(n-1){
-            ans /= env.memory.pop().unwrap();
+        let mut ans = env.origin.memory.pop().unwrap();
+        for _ in 0..(n-1){
+            ans /= env.origin.memory.pop().unwrap();
         }
-        env.memory.push(ans);
-        // println!("DIV: {}", env.memory.last().unwrap());
+        env.origin.memory.push(ans);
+        // println!("DIV: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn modulo(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MOD){
         env.env_log.fuel -= map_to_fuel(opCode::MOD);
-        let mut ans = env.memory.pop().unwrap();
-        for i in 0..(n-1){
-            ans %= env.memory.pop().unwrap();
+        let mut ans = env.origin.memory.pop().unwrap();
+        for _ in 0..(n-1){
+            ans %= env.origin.memory.pop().unwrap();
         }
-        env.memory.push(ans);
-        // println!("MOD: {}", env.memory.last().unwrap());
+        env.origin.memory.push(ans);
+        // println!("MOD: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
@@ -188,30 +149,30 @@ fn send(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SEND){
         env.env_log.fuel -= map_to_fuel(opCode::SEND);
         env.env_log.fuel -= n as i64;
-        // println!("SEND: {}", env.memory.last().unwrap());
+        // println!("SEND: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn jump(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::JUMP){
         env.env_log.fuel -= map_to_fuel(opCode::JUMP);
-        env.pc = n as i64;
-        // println!("JUMP: {}", env.memory.last().unwrap());
+        env.origin.pc = n as i64;
+        // println!("JUMP: {}", env.origin.memory.last().unwrap());
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn pop(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::POP) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::POP);
-        for i in 0..n{
-            env.memory.push(env.stack.pop().unwrap());
+        for _ in 0..n{
+            env.origin.memory.push(env.origin.stack.pop().unwrap());
         }
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
     // println!("POP")
 }
@@ -219,32 +180,32 @@ fn pop(mut env: &mut env, n: i32){
 fn push(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::PUSH) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::PUSH);
-        for i in 0..n{
-            env.stack.push(env.memory.pop().unwrap());
+        for _ in 0..n{
+            env.origin.stack.push(env.origin.memory.pop().unwrap());
         }
         // println!("PUSH")
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn load(mut env: &mut env, word: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MOD){
         env.env_log.fuel -= map_to_fuel(opCode::MOD);
-        env.stack.push(word);
+        env.origin.stack.push(word as u8);
         // println!("LOAD")
     } else {
-        env.pc = -2;
+        env.origin.pc = -2;
     }
 }
 
 fn stop(mut env: &mut env){
-    env.pc = -1;
+    env.origin.pc = -1;
     // println!("STOP");
 }
 
 fn error(mut env: &mut env){
-    env.pc = -2;
+    env.origin.pc = -2;
     // println!("ERROR");
 }
 

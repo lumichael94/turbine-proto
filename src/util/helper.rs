@@ -14,7 +14,7 @@ use std::io::{self, Write, Read, BufRead};
 use data::account;
 use postgres::{Connection, SslMode};
 
-// Please don't judge me for this. I'm tired.
+
 // pub fn format_code(text: &str) -> Vec<String>{
 pub fn slice_to_vec(text: &str) -> Vec<String>{
     let s: String = text.to_string();

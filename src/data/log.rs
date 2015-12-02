@@ -15,7 +15,7 @@ use rustc_serialize::{Encodable};
 use rustc_serialize::json::{self, Json, Encoder};
 use data::account;
 
-#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+#[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
 pub struct log {
     pub hash:   String,     //  hash hash of opCodes executed
     pub state:  String,     //  hash of the state state
@@ -24,8 +24,7 @@ pub struct log {
     pub target: String,     //  target account address
     pub fuel:   i64,        //  fuel of log (positive or negative fuel)
     pub code:   String,
-    pub sig:    Vec<u8>,     //  Modify with Electrum style signatures
-    pub proof:  String,     //  Proof of the code executed
+    pub sig:    Vec<u8>,    //  Modify with Electrum style signatures
 }
 
 pub fn get_log (hash : &str, conn: &Connection) -> log{
@@ -48,7 +47,6 @@ pub fn get_log (hash : &str, conn: &Connection) -> log{
         fuel    :   row.get(5),
         code    :   row.get(6),
         sig     :   row.get(7),
-        proof   :   row.get(8),
     }
 }
 
@@ -61,12 +59,11 @@ pub fn save_log (l : log, conn: &Connection){
     let fuel = &l.fuel;
     let code : String = (*l.code).to_string();
     let sig: Vec<u8> = l.sig;
-    let proof: String = (*l.proof).to_string();
 
     conn.execute("INSERT INTO log \
-                 (hash, state, nonce, origin, target, fuel, code, sig, proof) \
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-                  &[&hash, &state, &nonce, &origin, &target, &fuel, &code, &sig, &proof]).unwrap();
+                 (hash, state, nonce, origin, target, fuel, code, sig) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+                  &[&hash, &state, &nonce, &origin, &target, &fuel, &code, &sig]).unwrap();
 }
 
 pub fn remove_log (hash : &str, conn: &Connection){
@@ -97,6 +94,19 @@ pub fn log_to_vec(l: &log)-> Vec<u8>{
 pub fn vec_to_log(raw_l: Vec<u8>) -> log{
     let l: log = decode(&raw_l[..]).unwrap();
     return l;
+}
+
+pub fn log_from_ref(l: &log) -> log{
+    log{
+        hash    :   (*l.hash).to_string(),
+        state   :   (*l.state).to_string(),
+        nonce   :   l.nonce,
+        origin  :   (*l.origin).to_string(),
+        target  :   (*l.target).to_string(),
+        fuel    :   l.fuel,
+        code    :   (*l.code).to_string(),
+        sig     :   l.sig.clone(),
+    }
 }
 
 
