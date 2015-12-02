@@ -4,31 +4,38 @@ use std::time::Duration;
 use std::io::{Read, Write};
 
 use data::account::account;
-use data::database;
+use data::{database, node, log};
 use network::proto;
 use postgres::{Connection, SslMode};
 use util::{helper, krypto};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::collections::HashMap;
 
-pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<HashMap<String, Sender<String>>>>){
+pub fn listen(address: String, main_stat: Arc<RwLock<(String, String)>>,
+nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<HashMap<String, account>>>,
+    curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	let add: &str  = &address;
 	let listener = TcpListener::bind(add).unwrap();
 	println!("\nListening started on {}", address);
-	let _ = to_main.send("bound".to_string());
 
     for stream in listener.incoming() {
+		//Cloning to move into threads
+		let m_stat = main_stat.clone();
+		let n_stat = nodes_stat.clone();
+		let c_accs = curr_accs.clone();
+		let c_logs = curr_logs.clone();
+
     	match stream {
     		Err(e) => { println!("Error on listening: {}", e) }
     		Ok(stream) => {
-				let tx = to_main.clone();
+				// let tx = to_main.clone();
 				let (to_threads, from_main): (Sender<String>, Receiver<String>) = mpsc::channel();
-				let mut arc = connected.clone();
+				// let mut arc = connected.clone();
 
     			thread::spawn(move || {
 					let _ = stream.set_read_timeout(Some(Duration::new(5,0)));
-    				handle(stream, tx, from_main, arc);
+    				handle(stream, m_stat, n_stat, c_accs, c_logs);
     			});
     		}
     	}
@@ -36,15 +43,16 @@ pub fn listen(address: String, to_main: Sender<String>, connected: Arc<Mutex<Has
 }
 
 //Connect to IP address.
-pub fn connect(address: &str, to_main: Sender<String>,
-		arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
+pub fn connect(address: &str, main_stat: Arc<RwLock<(String, String)>>,
+nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<HashMap<String, account>>>,
+    curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	//Downstream, 1 to 1
 	let (to_threads, from_main): (Sender<String>, Receiver<String>) = mpsc::channel();
 	let stream_attempt = TcpStream::connect(address);
 	match stream_attempt {
 		Ok(stream) => {
 			thread::spawn(move||{
-				handle(stream, to_main, from_main, arc);
+				handle(stream, main_stat, nodes_stat, curr_accs, curr_logs);
 			});
 		},
 		Err(_) => {
@@ -53,18 +61,18 @@ pub fn connect(address: &str, to_main: Sender<String>,
 	}
 }
 
-fn handle(mut stream: TcpStream, to_main: Sender<String>, from_main: Receiver<String>,
-	arc:  Arc<Mutex<HashMap<String, Sender<String>>>>) {
+fn handle(mut stream: TcpStream, main_stat: Arc<RwLock<(String, String)>>,
+nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<HashMap<String, account>>>,
+    curr_logs: Arc<RwLock<HashMap<String, log::log>>>) {
 
 	println!("Connected. Passed to handler");
 	let mut proto_buf;
 	let conn = database::connect_db();
 
-
 	// Handshake
-	let h_arc = arc.clone();
-	let h_tx = to_main.clone();
-	let attempt = proto::handshake(&mut stream, &conn, h_tx, h_arc);
+	let hs_mstat = main_stat.clone();
+    let hs_nstat = nodes_stat.clone();
+	let attempt = proto::handshake(&mut stream, &conn, hs_mstat, hs_nstat);
 	if attempt == None {
 		return;
 	}
@@ -73,22 +81,22 @@ fn handle(mut stream: TcpStream, to_main: Sender<String>, from_main: Receiver<St
 
 	// Main handler loop
 	loop {
-		let connected = arc.clone();
-		let tx = to_main.clone();
-		match from_main.try_recv() {
-			Ok(m) => {
-				println!("Message received from main: {:?}", m);
-				break;
-			},
-			Err(_)	=> {
-				println!("No message received from main");
-				proto_buf = [0; 2];
-				let _ = match stream.read(&mut proto_buf) {
-					Err(e) 	=> panic!("Error on read: {}", e),
-					Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn, tx, connected),
-				};
-			},
-		}
+        // TODO: Any method to prevent this chain cloning and passing of arcs?
+        //Cloning to move into protocol matching and execution
+		let m_stat = main_stat.clone();
+		let n_stat = nodes_stat.clone();
+		let c_accs = curr_accs.clone();
+		let c_logs = curr_logs.clone();
+
+		proto_buf = [0; 2];
+		let _ = match stream.read(&mut proto_buf) {
+			Err(e) 	=> panic!("Error on read: {}", e),
+
+			Ok(_) 	=> match_proto(&proto_buf[..], &mut stream, &conn, m_stat,
+				n_stat, c_accs, c_logs),
+		};
+			// },
+		// }
 	}
 	//Finish and exit
 	println!("Finished reading from stream.");
@@ -113,7 +121,8 @@ pub fn ping(stream: &mut TcpStream)-> bool{
 }
 
 fn match_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection,
-	to_main: Sender<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
+	local_stat: Arc<RwLock<(String, String)>>, nodes_stat: Arc<RwLock<HashMap<String, node::node>>>,
+	curr_accs: Arc<RwLock<HashMap<String, account>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	match incoming[0]{
 		0 => {
 			//No Response. Wait, then ping.

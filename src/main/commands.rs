@@ -117,6 +117,7 @@ pub fn turbo(){
     println!("\n\nPerforming network check...");
     let conn = database::connect_db();
     let p = profile::get_active(&conn).unwrap();
+    database::close_db(conn);
     let trusted: Vec<String> = helper::slice_to_vec(&p.trusted);
     let local_ip: String = p.ip;
 
@@ -127,50 +128,58 @@ pub fn turbo(){
     //to_turbo sends an connnected command
     let (to_main, from_threads): (Sender<String>, Receiver<String>) = mpsc::channel();
     // let connected: Arc<Mutex<Vec<Sender<String>>>> = Arc::new(Mutex::new(Vec::new()));
-    let connected: Arc<Mutex<HashMap<String, Sender<String>>>> = Arc::new(Mutex::new(HashMap::new()));
-    let serv_arc = connected.clone();
-    let serv_to_main = to_main.clone();
+    // let connected: Arc<RwLock<HashMap<String, Sender<String>>>> = Arc::new(RwLock::new(HashMap::new()));
+    // let serv_arc = connected.clone();
+    // let serv_to_main = to_main.clone();
 
-    //Starting Server
-    let _ = thread::spawn(move ||
-        server::listen(local_ip, serv_to_main, serv_arc)
-    );
-
-    //Waiting for the server to bind.
-    let bound = from_threads.recv().unwrap();
-    if bound == "bound".to_string(){
-        let conn_arc = connected.clone();
-        let threads_to_main = to_main.clone();
-        //Connecting to trusted accounts for active profile.
-        println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
-        proto::connect_to_peers(trusted, threads_to_main, conn_arc);
-        thread::sleep(Duration::from_millis(500));
-        let conn_len = connected.lock().unwrap().len();
-        println!("Connected to {:?} peers.", conn_len);
-    } else {
-        println!("Error binding to address.");
-        database::close_db(conn);
-        return;
-    }
-
-    let check_num = connected.clone();
-    for add in check_num.lock().unwrap().keys(){
-        println!("Connected to node: {:?}", add);
-    }
-
-    database::close_db(conn);
 
     // Initializing Arcs
+    // Local Status. String<Status>
+    let main_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
     // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
     let nodes_stat: Arc<RwLock<HashMap<String, node::node>>> = Arc::new(RwLock::new(HashMap::new()));
-    // Local Status. String<Status>
-    let local_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
     // Current Accounts. HashMap<Address, Account>
     let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Logs. HashMap<Hash, Log>
     let curr_logs: Arc<RwLock<HashMap<String, log::log>>> = Arc::new(RwLock::new(HashMap::new()));
 
+    // Cloning to move into server
+    let m_stat = main_stat.clone();
+    let n_stat = nodes_stat.clone();
+    let c_accs = curr_accs.clone();
+    let c_logs = curr_logs.clone();
+    //Starting Server
+    let _ = thread::spawn(move ||
+        server::listen(local_ip, m_stat, n_stat, c_accs, c_logs)
+    );
+
+    //Waiting for the server to bind.
+    let bound = from_threads.recv().unwrap();
+    if bound == "bound".to_string(){
+        //Connecting to trusted accounts for active profile.
+        println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
+
+        let nde_stat = nodes_stat.clone();
+
+        // Connecting to peers
+        for ip in trusted{
+            server::connect(&ip, main_stat.clone(), nodes_stat.clone(), curr_accs.clone(), curr_logs.clone());
+        }
+
+        thread::sleep(Duration::from_millis(500));
+        // let conn_len = connected.read().unwrap().len();
+        let conn_len = nodes_stat.read().unwrap().len();
+        println!("Connected to {:?} peers.", conn_len);
+    } else {
+        println!("Error binding to address.");
+        return;
+    }
+
+    // let check_nde = .clone();
+    for add in nodes_stat.read().unwrap().keys(){
+        println!("Connected to node: {:?}", add);
+    }
     //Starts consensus loop
     println!("Starting consensus.");
-    consensus::consensus_loop(nodes_stat, local_stat, curr_accs, curr_logs);
+    consensus::consensus_loop(main_stat, nodes_stat, curr_accs, curr_logs);
 }

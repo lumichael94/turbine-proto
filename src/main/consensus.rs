@@ -19,8 +19,8 @@ use std::sync::{Arc, Mutex, RwLock};
 
 // Main consensus function
 // pub fn consensus_loop(from_threads: Receiver<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
-pub fn consensus_loop(nodes_stat: Arc<RwLock<HashMap<String, node::node>>>,
-    local_stat: Arc<RwLock<(String, String)>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+pub fn consensus_loop(local_stat: Arc<RwLock<(String, String)>>,
+nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
     curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
     let conn = database::connect_db();
 

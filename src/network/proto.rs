@@ -8,29 +8,28 @@ use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
 use network::server;
-use data::{account, database, log, state};
+use data::{account, database, log, state, node};
 use std::io::{Read, Write};
 use util::helper;
 use postgres::{Connection, SslMode};
 use std::sync::mpsc::{self, Sender, Receiver};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::collections::HashMap;
 use main::consensus;
 
 //====================================================================
-//GENERAL PROTOCOL FUNCTIONS
+// GENERAL PROTOCOL FUNCTIONS
 //====================================================================
 
-//Initial Peer Connections
-//Connects to a list of nodes. Appends connected nodes to list in active profile.
-pub fn connect_to_peers(addresses: Vec<String>, to_main: Sender<String>,
-                        arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
-    println!("Connecting to peers...");
-    for address in addresses{
-        let connected = arc.clone();
-        server::connect(&address, to_main.clone(), connected);
-    }
-}
+// Initial Peer Connections
+// Connects to a list of nodes. Appends connected nodes to list in active profile.
+// TODO: Remove
+// pub fn connect_to_peers(addresses: Vec<String>,main_stat: Arc<RwLock<(String, String)>>,
+// nodes_stat: Arc<RwLock<HashMap<String, node::node>>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+//     curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
+//     println!("Connecting to peers...");
+//
+// }
 
 //Closing all active connections
 //TODO: Fix errors.
@@ -48,8 +47,8 @@ pub fn close_connections(from_threads: Receiver<String>, arc: Arc<Mutex<Vec<Send
 }
 
 //Initiate Handshake.
-pub fn handshake(stream: &mut TcpStream, conn: &Connection, to_main: Sender<String>,
-    arc:  Arc<Mutex<HashMap<String, Sender<String>>>>) -> Option<String>{
+pub fn handshake(stream: &mut TcpStream, conn: &Connection, local_stat: Arc<RwLock<(String, String)>>,
+nodes_stat: Arc<RwLock<HashMap<String, node::node>>>) -> Option<String>{
 
     // Retrieving and sending active account
     let my_acc: account::account = account::get_active_account(conn);
@@ -71,10 +70,10 @@ pub fn handshake(stream: &mut TcpStream, conn: &Connection, to_main: Sender<Stri
                 None => continue,
                 // Valid Account
                 Some(acc) => {
-                    let h_arc = arc.clone();
-                    let mut connected = h_arc.lock().unwrap();
+                    // let h_arc = arc.clone();
+                    // let mut connected = h_arc.write().unwrap();
                     let add = &acc.address;
-                    connected.insert(add.to_string(), to_main);
+                    // connected.insert(add.to_string(), to_main);
                     return Some(add.to_string());
                 },
             }
