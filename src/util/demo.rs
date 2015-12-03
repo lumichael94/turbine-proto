@@ -28,7 +28,6 @@ pub fn get_demo_log(code: &str, fuel: i64)-> log::log{
         "c" => {l.code = code_c;},
         _ => {println!{"You entered an invalid character. Please try again."}},
     }
-
     l.fuel = fuel;
     return l;
 }

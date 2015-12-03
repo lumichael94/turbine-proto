@@ -4,15 +4,9 @@ extern crate rustc_serialize;
 extern crate postgres;
 extern crate chrono;
 
-use std::os;
-use std::sync;
-use rustc_serialize::Encodable;
-use rustc_serialize::json::{self, Json, Encoder};
 // use rustc_serialize::json::Json
-use std::fs::File;
 use std::io::{self, Write, Read, BufRead};
-use data::account;
-use postgres::{Connection, SslMode};
+
 
 
 // pub fn format_code(text: &str) -> Vec<String>{

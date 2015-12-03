@@ -66,7 +66,7 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
         }
     }
     // TODO: Makes this reachable.
-    database::close_db(conn);
+    // database::close_db(conn);
 }
 
 pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, state:String){

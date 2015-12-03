@@ -90,7 +90,8 @@ pub fn help(){
     profile \t -n \t\t \t\t Create a new profile.\n
     db\t\t -r \t\t [table], all \t Removes a table or the entire database.\n
     genesis\t \t\t \t\t Wipes database and initializes Genesis state \n
-    turbo\t \t\t \t\t Connects to network and starts consensus method\n";
+    turbo\t \t\t \t\t Connects to network and starts consensus method\n
+    coding\t \t\t \t\t Write opcodes on the fly.\n";
     println!("{}", help_text);
 }
 
@@ -106,6 +107,7 @@ pub fn read_command() -> bool{
         "profile"       => profile_flags(flags),
         "db"            => database_flags(flags),
         "genesis"       => load_genesis(false),
+        "coding"        => coding(),
         "turbo"         => {
             thread::spawn(move ||turbo());
         },

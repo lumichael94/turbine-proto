@@ -8,6 +8,7 @@ use std::sync::RwLock;
 use main::consensus;
 use std::collections::HashMap;
 use std::time::Duration;
+use postgres::{Connection};
 
 //====================================================================
 // COMMAND FUNCTIONS
@@ -135,6 +136,20 @@ pub fn new_profile(){
 
     //TODO: Profile can fail.
     println!("=>> Profile created.");
+    database::close_db(conn);
+}
+
+pub fn coding(){
+    let code: String = helper::read_in();
+    let conn = database::connect_db();
+    let prof = profile::get_active(&conn).unwrap();
+    let acc = account::get_account(&prof.account, &conn);
+    let mut l = demo::get_demo_log("a", 10000);
+    l.state = "".to_string();
+    l.nonce = acc.log_nonce;
+    l.origin = acc.address;
+    l.code = code;
+    log::save_log(l, &conn);
     database::close_db(conn);
 }
 

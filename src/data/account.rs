@@ -6,12 +6,7 @@ extern crate secp256k1;
 extern crate rustc_serialize;
 extern crate bincode;
 
-use std::os;
-use std::sync;
-use std::str;
-use std::iter::IntoIterator;
 use self::secp256k1::*;
-use self::secp256k1::key::*;
 use postgres::{Connection, SslMode};
 use util::*;
 use self::bincode::SizeLimit;
