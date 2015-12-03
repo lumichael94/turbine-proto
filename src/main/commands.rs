@@ -2,7 +2,7 @@ use std::thread;
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use network::{server, proto};
-use data::{account, state, database, log, profile, node};
+use data::{account, state, database, log, profile, tenv};
 use util::{helper, genesis};
 use postgres::Connection;
 use std::io::BufRead;
@@ -137,7 +137,7 @@ pub fn turbo(){
     // Local Status. String<Status>
     let main_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
     // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
-    let nodes_stat: Arc<RwLock<HashMap<String, node::node>>> = Arc::new(RwLock::new(HashMap::new()));
+    let nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Accounts. HashMap<Address, Account>
     let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Logs. HashMap<Hash, Log>

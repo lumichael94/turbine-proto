@@ -31,6 +31,10 @@ pub fn vec_to_hs(raw_hs: &Vec<u8>) -> handshake{
     return hs;
 }
 
+// pub fn handshake() -> node{
+//
+// }
+
 // pub fn check_handshake(raw_hs: Vec<u8>)-> Option<handshake>{
 //     let conn: Connection = database::connect_db();
 //     let node_hs = vec_to_hs(&raw_hs);

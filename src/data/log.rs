@@ -14,6 +14,7 @@ use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
 use rustc_serialize::json::{self, Json, Encoder};
 use data::account;
+use std::collections::HashMap;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
 pub struct log {
@@ -91,7 +92,7 @@ pub fn log_to_vec(l: &log)-> Vec<u8>{
     encode(l, SizeLimit::Infinite).unwrap()
 }
 
-pub fn vec_to_log(raw_l: Vec<u8>) -> log{
+pub fn vec_to_log(raw_l: &Vec<u8>) -> log{
     let l: log = decode(&raw_l[..]).unwrap();
     return l;
 }
@@ -109,6 +110,31 @@ pub fn log_from_ref(l: &log) -> log{
     }
 }
 
+pub fn hmap_to_vec(hmap: HashMap<String, log>)-> Vec<u8>{
+    let mut log_vec: Vec<String> = Vec::new();
+    for (_, l) in hmap{
+        let byte_vec: Vec<u8> = log_to_vec(&l.clone());
+        let str_vec: String = String::from_utf8(byte_vec).unwrap();
+        log_vec.push(str_vec);
+    }
+    println!("hmap_to_vec for log");
+    encode(&log_vec, SizeLimit::Infinite).unwrap()
+}
+
+pub fn vec_to_hmap(raw_logs: &Vec<u8>)-> HashMap<String, log>{
+    let log_vec: Vec<String> = decode(&raw_logs[..]).unwrap();
+    let mut hmap: HashMap<String, log> = HashMap::new();
+    for l_string in log_vec{
+        let byte_vec: Vec<u8> = l_string.into_bytes();
+        let l: log = vec_to_log(&byte_vec);
+        let hash = l.clone().hash;
+        hmap.insert(hash, l);
+    }
+    return hmap;
+}
+pub fn compare_logs(their_accs: HashMap<String, log>, our_accs: HashMap<String, log>){
+
+}
 
 
 // #[cfg(test)]

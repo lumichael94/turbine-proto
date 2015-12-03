@@ -19,6 +19,7 @@ use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
 use rustc_serialize::json::{self, Json, Encoder};
 use data::{state, profile, database};
+use std::collections::HashMap;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
 pub struct account{
@@ -188,6 +189,32 @@ pub fn check_account(raw_acc: Vec<u8>) -> Option<account>{
     save_account(&return_acc, &conn);
     database::close_db(conn);
     Some(return_acc)
+}
+
+// TODO
+pub fn hmap_to_vec(hmap: HashMap<String, account>)-> Vec<u8>{
+    let mut acc_vec: Vec<String> = Vec::new();
+    for (_, acc) in hmap{
+        let byte_vec: Vec<u8> = acc_to_vec(&acc.clone());
+        let str_vec: String = String::from_utf8(byte_vec).unwrap();
+        acc_vec.push(str_vec);
+    }
+    println!("hmap_to_vec for account");
+    encode(&acc_vec, SizeLimit::Infinite).unwrap()
+}
+pub fn vec_to_hmap(raw_accs: &Vec<u8>)-> HashMap<String, account>{
+    let acc_vec: Vec<String> = decode(&raw_accs[..]).unwrap();
+    let mut hmap: HashMap<String, account> = HashMap::new();
+    for acc_string in acc_vec{
+        let byte_vec: Vec<u8> = acc_string.into_bytes();
+        let acc: account = vec_to_acc(&byte_vec);
+        let add = acc.clone().address;
+        hmap.insert(add, acc);
+    }
+    return hmap;
+}
+pub fn compare_accounts(their_accs: HashMap<String, account>, our_accs: HashMap<String, account>){
+
 }
 
 //Tests
