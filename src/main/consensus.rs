@@ -37,7 +37,8 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
                 let poss_logs = curr_logs.clone();
                 let poss_state = env::execute_state(poss_logs);
                 state::save_state(&poss_state, &conn);
-                thread::sleep(Duration::from_millis(500));
+                // State has been committed. Logs are cleared.
+                curr_logs.write().unwrap().clear();
             } else if should_propose(te){
                 println!("=>> Proposal Phase for State {:?}", curr_state.hash);
                 // Setting local status to proposing.

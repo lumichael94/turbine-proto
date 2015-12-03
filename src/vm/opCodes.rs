@@ -80,7 +80,7 @@ fn add(mut env: &mut env, n: i32){
             ans += env.origin.memory.pop().unwrap();
         }
         env.origin.memory.push(ans);
-        // println!("ADD: {}", env.origin.memory.last().unwrap());
+        println!("ADD: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -94,7 +94,7 @@ fn sub(mut env: &mut env, n: i32){
             ans -= env.origin.memory.pop().unwrap();
         }
         env.origin.memory.push(ans);
-        // println!("SUB: {}", env.origin.memory.last().unwrap());
+        println!("SUB: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -110,7 +110,7 @@ fn mul(mut env: &mut env, n: i32){
             ans *= env.origin.memory.pop().unwrap();
         }
         env.origin.memory.push(ans);
-        // println!("MUL: {}", env.origin.memory.last().unwrap());
+        println!("MUL: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -125,7 +125,7 @@ fn div(mut env: &mut env, n: i32){
             ans /= env.origin.memory.pop().unwrap();
         }
         env.origin.memory.push(ans);
-        // println!("DIV: {}", env.origin.memory.last().unwrap());
+        println!("DIV: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -139,7 +139,7 @@ fn modulo(mut env: &mut env, n: i32){
             ans %= env.origin.memory.pop().unwrap();
         }
         env.origin.memory.push(ans);
-        // println!("MOD: {}", env.origin.memory.last().unwrap());
+        println!("MOD: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -149,7 +149,7 @@ fn send(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SEND){
         env.env_log.fuel -= map_to_fuel(opCode::SEND);
         env.env_log.fuel -= n as i64;
-        // println!("SEND: {}", env.origin.memory.last().unwrap());
+        println!("SEND: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -159,7 +159,7 @@ fn jump(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::JUMP){
         env.env_log.fuel -= map_to_fuel(opCode::JUMP);
         env.origin.pc = n as i64;
-        // println!("JUMP: {}", env.origin.memory.last().unwrap());
+        println!("JUMP: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
@@ -174,7 +174,7 @@ fn pop(mut env: &mut env, n: i32){
     } else {
         env.origin.pc = -2;
     }
-    // println!("POP")
+    println!("POP")
 }
 
 fn push(mut env: &mut env, n: i32){
@@ -183,17 +183,17 @@ fn push(mut env: &mut env, n: i32){
         for _ in 0..n{
             env.origin.stack.push(env.origin.memory.pop().unwrap());
         }
-        // println!("PUSH")
+        println!("PUSH")
     } else {
         env.origin.pc = -2;
     }
 }
 
 fn load(mut env: &mut env, word: i32){
-    if env.env_log.fuel > map_to_fuel(opCode::MOD){
-        env.env_log.fuel -= map_to_fuel(opCode::MOD);
+    if env.env_log.fuel > map_to_fuel(opCode::LOAD){
+        env.env_log.fuel -= map_to_fuel(opCode::LOAD);
         env.origin.stack.push(word as u8);
-        // println!("LOAD")
+        println!("LOAD")
     } else {
         env.origin.pc = -2;
     }
@@ -201,12 +201,12 @@ fn load(mut env: &mut env, word: i32){
 
 fn stop(mut env: &mut env){
     env.origin.pc = -1;
-    // println!("STOP");
+    println!("STOP");
 }
 
 fn error(mut env: &mut env){
     env.origin.pc = -2;
-    // println!("ERROR");
+    println!("ERROR");
 }
 
 pub fn map_to_fuel(code: opCode) -> i64{

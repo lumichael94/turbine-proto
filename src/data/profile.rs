@@ -200,7 +200,7 @@ pub fn trusted_nodes(conn: &Connection) -> Vec<String>{
 
 //Activate profile of a given name
 pub fn activate(name: &str, conn: &Connection) -> bool{
-    println!("\nActivating profile...");
+    println!("\n=>> Activating profile...");
 
     let exist = profile_exist(name, conn);
     if !exist{

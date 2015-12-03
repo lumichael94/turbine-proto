@@ -3,9 +3,7 @@ use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use network::{server, proto};
 use data::{account, state, database, log, profile, tenv};
-use util::{helper, genesis, demo, krypto};
-use postgres::Connection;
-use std::io::BufRead;
+use util::{helper, genesis, demo};
 use std::sync::RwLock;
 use main::consensus;
 use std::collections::HashMap;
@@ -27,7 +25,6 @@ pub fn drop_all(){
         database::close_db(conn);
 }
 
-// TODO: Error when drop all and continuing. Need to break.
 // Drops database and loads Genesis state.
 pub fn load_genesis(init: bool){
     // If init is true, it means its a fresh install so there isn't a need for a prompt
@@ -38,6 +35,7 @@ pub fn load_genesis(init: bool){
             return;
         }
         drop_all();
+        process::exit(1);
     }
     let genesis_state = genesis::get_genesis();
     let conn = database::connect_db();

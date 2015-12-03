@@ -45,21 +45,22 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
         l_hash:     String::new(),
         fuel_exp:   0 as i64,
     };
+
     // Adding accounts that were used and storing them.
     let mut accs: Vec<account::account> = Vec::new();
     let mut logs: Vec<log::log> = Vec::new();
     // Executing Logs
     for (l_hash, l) in log_hmap{
-        let l_orig_hash = l.origin.clone();
-
-        let mut orig = account::get_account(&l_orig_hash, &conn);
+        let orig_add = l.origin.clone();
         let mut check_log = l.clone();
-
-        println!("Executing Log {:?} from account {:?}", l_hash, l_orig_hash);
+        let mut orig = account::get_account(&orig_add, &conn);
+        // println!("What is this? {:?}", orig.pc);
+        println!("=>> Executing Log {:?} from account {:?}", l_hash, orig_add);
         let code: Vec<String> = helper::slice_to_vec(&l.code);
         let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
 
         let mut e: env = env_from_log(l, orig.clone());
+        println!("env: {:?}", e.origin.pc);
         let proof = execute_env(true, &mut e, &instr_set);
 
         if (&check_log.state == "") | (&check_log.hash == ""){
@@ -67,7 +68,6 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
             check_log.hash = proof.clone();
         }
         orig = e.origin.clone();
-        println!("WHAT IS THIS? {:?}", orig.pc.clone());
         // Rehashing with every log hash
         let prev_hash = s.hash.clone();
         s.hash = krypto::string_hash(&proof, &prev_hash);
@@ -94,7 +94,7 @@ pub fn execute_env(sign: bool, e: &mut env,
         let ref param: Vec<String>  = (instr_set.1)[e.origin.pc as usize];
         println!("\n\nExecute opCode: {}", map_to_string(&instr));
         println!("With params of: {:?}", param);
-        println!("And a fuel cost of: {:?}", e.env_log.fuel);
+        println!("Fuel left: {:?}", e.env_log.fuel);
         execute_instr(&instr, &param, e);
         println!("This is the stack: {:?}", e.origin.stack);
         println!("This is the memory: {:?}\n\n", e.origin.memory);
@@ -107,12 +107,10 @@ pub fn execute_env(sign: bool, e: &mut env,
     e.hash.to_string()
 }
 
-pub fn execute_instr(instr: &opCode, param: &Vec<String>, mut e: &mut env){
-
+pub fn execute_instr(instr: &opCode, param: &Vec<String>, e: &mut env){
     match instr {
         &ADD     => {
             e.hash = krypto::string_hash(&e.hash, "ADD").to_string();
-            // e.fuel -= ;
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             // map_to_fn(opCode_param::ADD(&mut e.stack, &mut e.memory, n));
             map_to_fn(opCode_param::ADD(e, n));

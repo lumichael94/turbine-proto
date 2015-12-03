@@ -8,7 +8,7 @@ authors = [ "James Moak <jmoak6@gatech.edu>",
 
 # [[bin]]
 # name = "turbine"
-# path = "src/turbo/turbo.rs"
+# path = "src/main/turbo.rs"
 
 
 [dependencies]
