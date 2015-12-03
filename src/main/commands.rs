@@ -129,7 +129,7 @@ pub fn turbo(){
     // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
     let thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Accounts. HashMap<Address, Account>
-    let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
+    // let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Logs. HashMap<Hash, Log>
     let curr_logs: Arc<RwLock<HashMap<String, log::log>>> = Arc::new(RwLock::new(HashMap::new()));
     // Cloning to move into server
@@ -161,5 +161,5 @@ pub fn turbo(){
 
     //Starts consensus loop
     println!("Starting consensus.");
-    consensus::consensus_loop(main_stat, tenv_arc, curr_accs, curr_logs);
+    consensus::consensus_loop(main_stat, tenv_arc, curr_logs);
 }

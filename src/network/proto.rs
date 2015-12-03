@@ -189,10 +189,10 @@ pub fn request_poss_shash(stream: &mut TcpStream)-> String{
 // Requesting possible logs to be included in the current state
 pub fn request_poss_logs(stream: &mut TcpStream)->HashMap<String, log::log>{
     // Requesting Logs
-    let _ = stream.write(&[4, 0]);
+    // let _ = stream.write(&[4, 0]);
     let mut incoming = [0;2];
     let _ = stream.read(&mut incoming);
-    let raw_logs = read_stream(stream, incoming[2]);
+    let raw_logs = read_stream(stream, incoming[1]);
     log::vec_to_hmap(&raw_logs)
 }
 
@@ -222,11 +222,11 @@ pub fn exchange_accounts(stream: &mut TcpStream, acc_hmap: HashMap<String, accou
 }
 
 // Compare and append missing logs from connected node.
-pub fn compare_logs(node_logs: HashMap<String, log::log>, logs_arc: Arc<RwLock<HashMap<String, log::log>>>){
+pub fn compare_logs(node_logs: HashMap<String, log::log>, logs_arc: Arc<RwLock<HashMap<String, log::log>>>)->i32{
     let our_logs: HashMap<String, log::log> = logs_arc.read().unwrap().clone();
     let my_log = our_logs.clone();
     let their_logs: HashMap<String, log::log> = node_logs;
-
+    let mut counter = 0;
     // Iterate and save missing logs
     let mut l_arc = logs_arc.write().unwrap();
     for (l_hash, l) in their_logs{
@@ -234,8 +234,10 @@ pub fn compare_logs(node_logs: HashMap<String, log::log>, logs_arc: Arc<RwLock<H
             let save_l = l.clone();
             let hash = l.hash;
             (*l_arc).insert(hash, save_l);
+            counter += 1;
         }
     }
+    return counter;
 }
 
 // Compare and trade missing accounts with connected node.
@@ -317,4 +319,14 @@ pub fn read_stream(stream: &mut TcpStream, length: u8) -> Vec<u8>{
 	let mut data_buf = vec![0; length as usize];
 	let _ = stream.read(&mut data_buf[..]);
 	return data_buf;
+}
+
+pub fn get_main_stat(main_stat: Arc<RwLock<(String, String)>>)->(String, String){
+    let marc = main_stat.clone();
+    let reader = marc.read().unwrap();
+    let status: String = reader.0.clone();
+    let state: String = reader.1.clone();
+    // let (status, state) = ;
+    drop(reader);
+    return (status, state);
 }

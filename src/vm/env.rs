@@ -24,12 +24,9 @@ pub struct env {
     pub hash        : String,       // Also known as proof
 }
 
-// TODO: Change output env into Option<env>
 // Initializes an env from a log and its traits
-pub fn env_from_log(curr_accs: Arc<RwLock<HashMap<String, account::account>>>, l: log::log) -> env{
-    // TODO: Check if origin account is retrieved correctly
-    let accs = curr_accs.read().unwrap();
-    let env_origin = accs.get(&l.origin).unwrap().clone();
+pub fn env_from_log(l: log::log, conn: &Connection) -> env{
+    let env_origin = account::get_account(&l.origin, &conn);
     return env{
         origin:     env_origin,
         targets:    Vec::new(),
@@ -38,52 +35,50 @@ pub fn env_from_log(curr_accs: Arc<RwLock<HashMap<String, account::account>>>, l
     }
 }
 
-pub fn propose_state(curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
-    logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
-
+pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
     let log_hmap: HashMap<String, log::log> = logs.read().unwrap().clone();
+    let conn = database::connect_db();
+    let mut s = state {
+        nonce:      0 as i64,
+        hash:       String::new(),
+        prev_state: String::new(),
+        acc_hash:   String::new(),
+        l_hash:     String::new(),
+        fuel_exp:   0 as i64,
+    };
+    // Adding accounts that were used and storing them.
+    let mut accs: Vec<account::account> = Vec::new();
 
     // Executing Logs
     for (l_hash, l) in log_hmap{
+        let l_orig_hash = l.origin.clone();
+        let orig = account::get_account(&l_orig_hash, &conn);
+        println!("Executing Log {:?} from account {:?}", l_hash, l_orig_hash);
+
         let code: Vec<String> = helper::slice_to_vec(&l.code);
         let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
-        let arc = curr_accs.clone();
-        let mut e: env = env_from_log(arc, l);
-        let env_hash: String = execute_env(true, &mut e, &instr_set);
-        if l_hash != env_hash{
-            // TODO: Invalid Log, Request from trusted nodes.
-            println!("There is an invalid log.");
-        }
+        let mut e: env = env_from_log(l, &conn);
+        let proof = execute_env(true, &mut e, &instr_set);
+        let prev_hash = s.hash.clone();
+        s.hash = krypto::string_hash(&proof, &prev_hash);
+        accs.push(orig);
     }
-
-    return state {
-        nonce:      0 as i64,
-        hash:       "".to_string(),
-        prev_state: "".to_string(),
-        acc_hash:   "".to_string(),
-        l_hash:     "".to_string(),
-        fuel_exp:   0 as i64,
-    };
+    database::close_db(conn);
+    return s;
 }
 
 pub fn execute_env(sign: bool, e: &mut env,
     instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> String{
     loop {
-        // TODO: Not sure if assigning a variable as e.origin.pc will destroy reference
         let ref instr: opCode       = (instr_set.0)[e.origin.pc as usize];
         let ref param: Vec<String>  = (instr_set.1)[e.origin.pc as usize];
-        // let ref fuel_cost: i64      = (instr_set.2)[e.origin.pc as usize];
-
         // println!("\n\nExecute opCode: {}", map_to_string(&instr));
         // println!("With params of: {:?}", param);
         // println!("And a fuel cost of: {:?}", fuel_cost);
-
         execute_instr(&instr, &param, e);
-
         // println!("This is the stack: {:?}", e.stack);
         // println!("This is the memory: {:?}\n\n", e.memory);
         // println!("This is the counter: {:?}", e.pc);
-
         if e.origin.pc < 0 {
             break;
         }

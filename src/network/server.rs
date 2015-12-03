@@ -53,7 +53,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 
 fn handle(mut stream: TcpStream, main_stat: Arc<RwLock<(String, String)>>,
 nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>) {
-
+	thread::sleep(Duration::from_millis(100));
 	// println!("Connected. Passed to handler");
 	let conn = database::connect_db();
     // Main Statuses
@@ -67,9 +67,6 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 
     let attempt = request_handshake(&mut stream, &conn, hs_mstat, hs_nstat);
     let mut te;
-
-    // let mut buf;
-
     if attempt == None{
         return;                  // If handshake fails, return.
     } else {
@@ -81,17 +78,11 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
         // Cloning arcs
         let main_arc = main_stat.clone();
         let logs_arc = curr_logs.clone();
-
         let marc = main_arc.clone();
-        let m_tup = marc.read().unwrap();
-        let m_status: String = (*m_tup).0.clone();   // Current local status
-        let m_state: String = (*m_tup).1.clone();    // Current local state
-        println!("Thread status: {:?}", &m_status);
-
+		let (m_status, m_state) = get_main_stat(marc);
         if m_status == listening {
             // Exchange new logs
             let thread_status: String = te.t_stat;
-
             match &thread_status[..]{
                 "BEHIND" => {
                     // Requesting Logs
@@ -100,27 +91,47 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
                     let req_l_arc = logs_arc.clone();
                     request_logs(&mut stream, req_l_arc, next_shash);
                 },
-                "SYNCED" | "AHEAD" => {
+                "SYNCED" => {
                     // Thread sleep. Wait for other threads to catch up.
                     thread::sleep(Duration::from_millis(500));
                 },
                 _        => println!("Error on reading the thread status!"),
             }
-        } else if (m_status == proposing) && (&te.n_stat == "SYNCED"){
+        } else if m_status == proposing{
             // Thread broadcasts that it is synced and should be counted toward proposals
             // Requesting Logs
-            let their_logs = request_poss_logs(&mut stream);
-            // Comparing difference in logs.
-            let larc = logs_arc.clone();
-            compare_logs(their_logs, larc);
-        } else if (m_status == committing) && (te.n_stat == committing) {
+			let thread_status: String = te.t_stat.clone();
+			match &thread_status[..]{
+				"BEHIND" =>{
+					// Do nothing. Do not add to the possible logs.
+					//thread::sleep(Duration::from_millis(500));
+					continue;
+				},
+				"SYNCED" =>{
+					// println!("PROPOSING AND SYNCED");
+					// Change thread status from SYNCED to NOTREADY
+					te.t_stat = "NOTREADY".to_string();
+					let their_logs = request_poss_logs(&mut stream);
+					// Comparing difference in logs.
+					let larc = logs_arc.clone();
+					let diff = compare_logs(their_logs, larc);
+
+					if diff == 0 {
+						te.t_stat = "READY".to_string();
+					}
+
+				},
+				_ 	=>{},
+			}
+        } else if m_status == committing{
             // Query connected node for current state hashes.
             let node_poss_hash: String = request_poss_shash(&mut stream);
             if node_poss_hash == m_state {
                 te.t_stat = "SYNCED".to_string();
                 let mut n_hmap = nodes_stat.write().unwrap();
                 let updated_nde = te.clone();
-                n_hmap.insert(te.n_add, updated_nde);
+                (*n_hmap).insert(te.n_add, updated_nde);
+				drop(n_hmap);
             }
         } else {
             println!("Error reading local status: {:?}", &m_status);
@@ -132,7 +143,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
         let tenv_arc = nodes_stat.clone();
         let mut tenv_writer = tenv_arc.write().unwrap();
         (*tenv_writer).insert(node_add, te.clone());
-
+		drop(tenv_writer);
         // // Execute incoming
         // buf = [0; 2];
         // let _ = stream.read(&mut buf);
