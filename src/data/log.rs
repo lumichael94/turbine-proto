@@ -79,13 +79,38 @@ pub fn create_log_table(conn: &Connection){
                   origin    text,
                   target    text,
                   fuel      bigint,
-                  sig       bytea,
-                  proof     text
+                  code      text,
+                  sig       bytea
                   )", &[]).unwrap();
 }
 
 pub fn drop_log_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS log", &[]).unwrap();
+}
+
+pub fn get_no_state_logs(conn: &Connection)-> Vec<log>{
+    let maybe_stmt = conn.prepare("SELECT * FROM log WHERE state = $1");
+    let stmt = match maybe_stmt{
+        Ok(stmt) => stmt,
+        Err(err) => panic!("Error preparing statement: {:?}", err)
+    };
+    let i: String = "".to_string();
+    let mut logs: Vec<log> = Vec::new();
+    for row in stmt.query(&[&i]).unwrap(){
+        let l = log {
+            hash    :   row.get(0),
+            state   :   row.get(1),
+            nonce   :   row.get(2),
+            origin  :   row.get(3),
+            target  :   row.get(4),
+            fuel    :   row.get(5),
+            code    :   row.get(6),
+            sig     :   row.get(7),
+        };
+        logs.push(l);
+    }
+    return logs;
+
 }
 
 pub fn log_to_vec(l: &log)-> Vec<u8>{
@@ -104,7 +129,6 @@ pub fn hmap_to_vec(hmap: HashMap<String, log>)-> Vec<u8>{
         let str_vec: String = String::from_utf8(byte_vec).unwrap();
         log_vec.push(str_vec);
     }
-    println!("hmap_to_vec for log");
     encode(&log_vec, SizeLimit::Infinite).unwrap()
 }
 
@@ -118,9 +142,6 @@ pub fn vec_to_hmap(raw_logs: &Vec<u8>)-> HashMap<String, log>{
         hmap.insert(hash, l);
     }
     return hmap;
-}
-pub fn compare_logs(their_accs: HashMap<String, log>, our_accs: HashMap<String, log>){
-
 }
 
 

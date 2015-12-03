@@ -180,8 +180,6 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
         secret_key  : sk,
         trusted     : "".to_string(),
     };
-
-    println!("a");
     save_profile(&p, conn);
 
     //Creating a new profile also activates it.

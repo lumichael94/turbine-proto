@@ -7,7 +7,6 @@ use vm::env;
 use std::time::Duration;
 use std::thread;
 // use util::{helper, krypto};
-use postgres::{Connection, SslMode};
 // use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
 // use std::sync::mpsc::{self, Sender, Receiver};
 use std::collections::HashMap;
@@ -24,47 +23,45 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
     let conn = database::connect_db();
     // Listening Loop
     loop{
-        let te = tenv_stat.clone();
-        let marc = local_stat.clone();
-        let curr_state = state::get_current_state(&conn);
-        set_main_stat(marc, "LISTENING".to_string(), curr_state.hash.clone());
-
-        // Listening Loop can commit an outdated state if threads are ready
-        if should_commit(te.clone()){
-            let poss_logs = curr_logs.clone();
-            let poss_state: state::state = env::execute_state(poss_logs);
-            // Committing Loop
-            loop{
-                state::save_state(&poss_state, &conn);
-                let main_arc = local_stat.clone();
-                let curr_state = state::get_current_state(&conn);
-            }
-        }
-        if should_propose(te){
-            println!("Proposal Phase for State {:?}", curr_state.hash);
-            // Setting local status to proposing.
-            let m_arc = local_stat.clone();
+            let te = tenv_stat.clone();
+            let marc = local_stat.clone();
             let curr_state = state::get_current_state(&conn);
-            set_main_stat(m_arc, "PROPOSING".to_string(), curr_state.hash);
-            // Proposal Loop
-            loop {
-                let tenvs = tenv_stat.clone();
-                if should_commit(tenvs){
-                    let poss_logs = curr_logs.clone();
-                    let poss_state: state::state = env::execute_state(poss_logs);
-                    // Committing Loop
-                    loop{
-                        state::save_state(&poss_state, &conn);
+            set_main_stat(marc, "LISTENING".to_string(), curr_state.hash.clone());
+
+            let larc = curr_logs.clone();
+            let lmap = (*larc).read().unwrap();
+            if lmap.len() == 0 {
+                continue;
+            }
+            if should_commit(te.clone()){
+                let poss_logs = curr_logs.clone();
+                let poss_state = env::execute_state(poss_logs);
+                state::save_state(&poss_state, &conn);
+                thread::sleep(Duration::from_millis(500));
+            } else if should_propose(te){
+                println!("=>> Proposal Phase for State {:?}", curr_state.hash);
+                // Setting local status to proposing.
+                let m_arc = local_stat.clone();
+                let curr_state = state::get_current_state(&conn);
+                set_main_stat(m_arc, "PROPOSING".to_string(), curr_state.hash);
+                // Proposal Loop
+                loop {
+                    let tenvs = tenv_stat.clone();
+                    if should_commit(tenvs){
+                        let poss_logs = curr_logs.clone();
+                        let poss_state: state::state = env::execute_state(poss_logs);
                         let main_arc = local_stat.clone();
+
+                        state::save_state(&poss_state, &conn);
+
                         let curr_state = state::get_current_state(&conn);
-                        set_main_stat(main_arc, "COMMITTING".to_string(), curr_state.hash);
+                        set_main_stat(main_arc, "COMMITTED".to_string(), curr_state.hash);
                         // // Waiting for the network to synchronize
                         while !should_listen(tenv_stat.clone()){
                             thread::sleep(Duration::from_millis(500));
                         }
                     }
                 }
-            }
         }
     }
     // TODO: Makes this reachable.
@@ -105,6 +102,7 @@ pub fn should_listen(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool
     for (_, te) in h_map {
         if te.t_stat != "SYNCED".to_string(){
             counter+=1;
+
         }
    }
     let threshold = 0.8 as i32;
@@ -148,20 +146,20 @@ pub fn should_commit(thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> b
     let arc = thread_stat.clone();
     let tenv = arc.read().unwrap();
     let h_map = tenv.clone();
-
     let mut counter = 0 as i32;
-    let size = tenv.len() as i32;
+    let size = tenv.len().clone() as i32;
     drop(tenv);
-
     for (_, te) in h_map {
-        if te.t_stat == "READY"{
+        if (te.t_stat == "READY") | (te.t_stat == "SYNCED") {
             counter+=1;
         }
    }
     let threshold = 0.8 as i32;
     if size == 0 {return false};
     let percentage = counter / size;
-    if percentage > threshold {return true};
+    if percentage > threshold {
+        return true
+    };
     return false;
 }
 

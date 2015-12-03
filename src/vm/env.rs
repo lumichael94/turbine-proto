@@ -25,10 +25,9 @@ pub struct env {
 }
 
 // Initializes an env from a log and its traits
-pub fn env_from_log(l: log::log, conn: &Connection) -> env{
-    let env_origin = account::get_account(&l.origin, &conn);
+pub fn env_from_log(l: log::log, acc: account::account) -> env{
     return env{
-        origin:     env_origin,
+        origin:     acc,
         targets:    Vec::new(),
         env_log:    l,
         hash:       "".to_string(),
@@ -48,20 +47,40 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
     };
     // Adding accounts that were used and storing them.
     let mut accs: Vec<account::account> = Vec::new();
-
+    let mut logs: Vec<log::log> = Vec::new();
     // Executing Logs
     for (l_hash, l) in log_hmap{
         let l_orig_hash = l.origin.clone();
-        let orig = account::get_account(&l_orig_hash, &conn);
-        println!("Executing Log {:?} from account {:?}", l_hash, l_orig_hash);
 
+        let mut orig = account::get_account(&l_orig_hash, &conn);
+        let mut check_log = l.clone();
+
+        println!("Executing Log {:?} from account {:?}", l_hash, l_orig_hash);
         let code: Vec<String> = helper::slice_to_vec(&l.code);
         let instr_set: (Vec<opCode>, Vec<Vec<String>>, Vec<i64>) = decode(&code);
-        let mut e: env = env_from_log(l, &conn);
+
+        let mut e: env = env_from_log(l, orig.clone());
         let proof = execute_env(true, &mut e, &instr_set);
+
+        if (&check_log.state == "") | (&check_log.hash == ""){
+            check_log.state = s.prev_state.clone();
+            check_log.hash = proof.clone();
+        }
+        orig = e.origin.clone();
+        println!("WHAT IS THIS? {:?}", orig.pc.clone());
+        // Rehashing with every log hash
         let prev_hash = s.hash.clone();
         s.hash = krypto::string_hash(&proof, &prev_hash);
         accs.push(orig);
+        logs.push(check_log);
+    }
+
+    // Saving modified accounts and logs to database state
+    for acc in accs{
+        account::save_account(&acc, &conn);
+    }
+    for l in logs{
+        log::save_log(l, &conn);
     }
     database::close_db(conn);
     return s;
@@ -69,16 +88,17 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
 
 pub fn execute_env(sign: bool, e: &mut env,
     instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> String{
+
     loop {
         let ref instr: opCode       = (instr_set.0)[e.origin.pc as usize];
         let ref param: Vec<String>  = (instr_set.1)[e.origin.pc as usize];
-        // println!("\n\nExecute opCode: {}", map_to_string(&instr));
-        // println!("With params of: {:?}", param);
-        // println!("And a fuel cost of: {:?}", fuel_cost);
+        println!("\n\nExecute opCode: {}", map_to_string(&instr));
+        println!("With params of: {:?}", param);
+        println!("And a fuel cost of: {:?}", e.env_log.fuel);
         execute_instr(&instr, &param, e);
-        // println!("This is the stack: {:?}", e.stack);
-        // println!("This is the memory: {:?}\n\n", e.memory);
-        // println!("This is the counter: {:?}", e.pc);
+        println!("This is the stack: {:?}", e.origin.stack);
+        println!("This is the memory: {:?}\n\n", e.origin.memory);
+        println!("This is the counter: {:?}", e.origin.pc);
         if e.origin.pc < 0 {
             break;
         }
@@ -245,7 +265,7 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log::log{
   //   map_to_fn(opCode_param::STOP(&mut env.pc));
   //   println!("This is the program counter: {:?}\n\n", env.pc);
   // }
-//
+
 //   #[test]
 //   fn test_execute_code() {
 //     println!("\n\n\n\n\n\nvm test 2");

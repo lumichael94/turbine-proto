@@ -56,11 +56,21 @@ pub fn save_account(acc: &account, conn: &Connection){
     let ref memory = *acc.memory;
     let pc: i64 = acc.pc;
 
+
+    if account_exist(&add, &conn){
+        conn.execute("UPDATE account \
+            SET ip = $2, log_nonce = $3, fuel = $4, \
+            code = $5, s_nonce = $6, state = $7, public_key = $8, stack= $9, memory= $10, pc= $11 \
+            WHERE address = $1",
+                      &[&add, &ip_add, &nonce, &fuel, &code, &state_nonce,
+                      &state, &public_key, &stack, &memory, &pc]).unwrap();
+    } else {
     conn.execute("INSERT INTO account \
                   (address, ip, log_nonce, fuel, code, s_nonce, state, public_key, stack, memory, pc) \
                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
                   &[&add, &ip_add, &nonce, &fuel, &code, &state_nonce,
                   &state, &public_key, &stack, &memory, &pc]).unwrap();
+    }
 }
 
 pub fn create_account_table(conn: &Connection){

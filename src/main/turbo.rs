@@ -4,6 +4,7 @@ extern crate chrono;
 extern crate regex;
 
 use std::thread;
+use std::time::Duration;
 use std::io::{self, Write};
 // use std::sync::{Arc, Mutex};
 // use network::{server, proto};
@@ -15,7 +16,8 @@ use std::io::BufRead;
 use main::commands::*;
 
 pub fn init(){
-    println!("\nInitiating Turbine.");
+    println!("\n=>> Initiating Turbine.");
+    thread::sleep(Duration::from_millis(500));
     check_db();
 }
 
@@ -32,25 +34,25 @@ pub fn end(){
 }
 
 pub fn command_loop(){
-    println!("\nInitiating command REPL");
+    println!("\n=>> Initiating command REPL");
     let mut go: bool = true;
     while go {
-        print!(">> ");
+        print!("=>> ");
         io::stdout().flush().unwrap();
         go = read_command();
     }
 }
 
 pub fn check_db(){
-    println!("Performing database check...");
-    println!("Connecting to database...");
+    println!("=>> Performing database check...");
+    println!("=>> Connecting to database...");
     let conn: Connection = database::connect_db();
 
-    println!("Checking profile database...");
+    println!("=>> Checking profile database...");
     let missing_tables = database::check_tables(&conn);
     if missing_tables.len() != 0{
         for t in missing_tables{
-            println!("Missing table: {:?}. Creating...", t);
+            println!("=>> Missing table: {:?}. Creating...", t);
             let _ = match &t[..] {
                 "account"   => account::create_account_table(&conn),
                 "state"     => state::create_state_table(&conn),
@@ -60,15 +62,14 @@ pub fn check_db(){
             };
         }
     }
-
     loop {
         //If there are no profiles, create one.
         if profile::num_profile(&conn) == 0{
-            println!("No profiles found. Creating one...");
+            println!("=>> No profiles found. Creating one...");
             new_profile();
             break;
         } else {
-            println!("\nEnter name of profile to activate: ");
+            println!("\n=>> Enter name of profile to activate: ");
             let name: String = helper::read_in();
             if profile::activate(&name, &conn) {break;}
         }
@@ -76,7 +77,7 @@ pub fn check_db(){
 
     //If there are no states, load Genesis.
     if state::num_states(&conn) == 0{
-        println!("No saved states.");
+        println!("=>> No saved states.");
         load_genesis(true);
     }
     database::close_db(conn);
@@ -105,25 +106,16 @@ pub fn read_command() -> bool{
         "profile"       => profile_flags(flags),
         "db"            => database_flags(flags),
         "genesis"       => load_genesis(false),
-        "turbo"         => turbo(),                 //TODO: Implement running in background
+        "turbo"         => {
+            thread::spawn(move ||turbo());
+        },
         "help"          => help(),
+        "code"          => load_code(),
         "quit"|"exit"   => return false,
-        _               => println!("Did not recognize command, please try again."),
+        _               => println!("=>> Did not recognize command, please try again."),
     };
     return true;
 }
-
-// pub fn end(from_threads: Receiver<String>, connected: Arc<Mutex<Vec<Sender<String>>>>) {
-//     //TODO: Close all connections and end threads.
-//     proto::close_connections(from_threads, connected);
-//
-//     //TODO: Deactivate current profile.
-//     let conn = database::connect_db();
-//     profile::deactivate(&conn);
-//
-//     //TODO: Remove this.
-//     loop{}
-// }
 
 #[cfg(test)]
 mod test {

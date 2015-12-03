@@ -1,17 +1,15 @@
-use std::thread;
+use std::{thread, process};
 use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 use network::{server, proto};
 use data::{account, state, database, log, profile, tenv};
-use util::{helper, genesis};
+use util::{helper, genesis, demo, krypto};
 use postgres::Connection;
 use std::io::BufRead;
 use std::sync::RwLock;
-use std::sync::mpsc::{self, Sender, Receiver};
 use main::consensus;
 use std::collections::HashMap;
 use std::time::Duration;
-use vm::env;
 
 //====================================================================
 // COMMAND FUNCTIONS
@@ -32,22 +30,20 @@ pub fn drop_all(){
 // TODO: Error when drop all and continuing. Need to break.
 // Drops database and loads Genesis state.
 pub fn load_genesis(init: bool){
-
     // If init is true, it means its a fresh install so there isn't a need for a prompt
     if !init {
-        println!("Loading Genesis state erases the database. Continue? (y/n)");
+        println!("=>> Loading Genesis state erases the database. Continue? (y/n)");
         let yn = helper::read_yn();
         if !yn {
             return;
         }
         drop_all();
     }
-
     let genesis_state = genesis::get_genesis();
     let conn = database::connect_db();
     state::save_state(&genesis_state, &conn);
     database::close_db(conn);
-    println!("Genesis state loaded.");
+    println!("=>> Genesis state loaded.");
 }
 
 //Execute db command with flags
@@ -59,10 +55,11 @@ pub fn database_flags(flags: Vec<String>){
             let target = &flags[1];
             match &target[..]{
                 "all" => {
-                    println!("Are you sure you want to drop everything? (y/n)");
+                    println!("=>> Are you sure you want to drop everything? (y/n)");
                     let yn: bool = helper::read_yn();
                     if yn {
                         drop_all();
+                        process::exit(1);
                     }
                 },
                 "account"   => account::drop_account_table(&conn),
@@ -72,56 +69,88 @@ pub fn database_flags(flags: Vec<String>){
                 },
                 "log"       => log::drop_log_table(&conn),
                 "state"     => state::drop_state_table(&conn),
-                _           => println!("Unrecognized flag target for [db -drop]"),
+                _           => println!("=>> Unrecognized flag target for [db -drop]"),
             };
             database::close_db(conn);
         },
-        _ => println!("Unrecognized flags for command [db]"),
+        _ => println!("=>> Unrecognized flags for command [db]"),
     }
 }
 
 //Execute profile command with flags
 pub fn profile_flags(flags: Vec<String>){
     if flags.len() == 0 {
-        println!("Profile command requires flags.");
+        println!("=>> Profile command requires flags.");
     } else {
         let flag = &flags[0];
         match &flag[..]{
             "-n"    => new_profile(),
-            _       => println!("Unrecognized flags for command [profile]"),
+            _       => println!("=>> Unrecognized flags for command [profile]"),
         }
     }
+}
+
+// Loads and initializes a blank log
+pub fn load_code(){
+    println!("=>> Which log: a, b, c?");
+    let log_choice = helper::read_in();
+
+    println!("=>> How much initial fuel?");
+    let fuel_choice = helper::read_in();
+    let fuel: i64 = fuel_choice.parse().unwrap();
+
+    let mut l = demo::get_demo_log(&log_choice, fuel);
+    // let mess = l.code.clone();
+
+    // TODO Implement in the future
+    // let raw_sk = prof.secret_key.clone();
+    // let sk = krypto::decode_sk(&raw_sk);
+    //
+    // let sig =  krypto::sign_message(mess.as_bytes(), &sk).unwrap();
+    // l.sig = krypto::
+    //
+    // database::close_db(conn);
+
+    // Load into database under current database
+    let conn = database::connect_db();
+    let prof = profile::get_active(&conn).unwrap();
+    let acc = account::get_account(&prof.account, &conn);
+    l.state = "".to_string();
+    l.nonce = acc.log_nonce;
+    l.origin = acc.address;
+    // Not worrying about sig at the moment.
+    log::save_log(l, &conn);
+    database::close_db(conn);
 }
 
 //Creates a new profile.
 pub fn new_profile(){
     let conn = database::connect_db();
-    println!("\nEnter the name of new profile:");
+    println!("\n=>> Enter the name of new profile:");
     let n = helper::read_in();
 
     //TODO: Change from static IP to one that the user enters
-    println!("Enter the IP address and port (ex. 127.0.0.1:8888):");
+    println!("=>> Enter the IP address and port (ex. 127.0.0.1:8888):");
     let ip = helper::read_in();
     // let ip = "127.0.0.1:8888";
-
     profile::new_profile(&n, &ip, &conn);
 
     //TODO: Profile can fail.
-    println!("Profile created.");
+    println!("=>> Profile created.");
     database::close_db(conn);
 }
 
 // Main method
 // Connects to network and starts consensus loop
 pub fn turbo(){
-    println!("\n\nPerforming network check...");
+    println!("\n\n=>> Performing network check...");
     let conn = database::connect_db();
     let p = profile::get_active(&conn).unwrap();
-    database::close_db(conn);
+
     let trusted: Vec<String> = helper::slice_to_vec(&p.trusted);
     let local_ip: String = p.ip;
 
-    println!("Starting local server...");
+    println!("=>> Starting local server...");
 
     // Initializing Arcs
     // Local Status. String<Status>
@@ -132,10 +161,21 @@ pub fn turbo(){
     // let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Logs. HashMap<Hash, Log>
     let curr_logs: Arc<RwLock<HashMap<String, log::log>>> = Arc::new(RwLock::new(HashMap::new()));
+
+    // Appending previous logs that were not included in the previous state
+    let miss_logs = log::get_no_state_logs(&conn);
+    for l in miss_logs {
+        let larc = curr_logs.clone();
+        let mut l_write = larc.write().unwrap();
+        let hash = l.hash.clone();
+        (*l_write).insert(hash, l);
+    }
+
+    database::close_db(conn);
+
     // Cloning to move into server
     let m_stat = main_stat.clone();
     let t_stat = thread_stat.clone();
-    // let c_accs = curr_accs.clone();
     let c_logs = curr_logs.clone();
     //Starting Server
     let _ = thread::spawn(move ||
@@ -143,7 +183,7 @@ pub fn turbo(){
     );
 
     //Connecting to trusted accounts for active profile.
-    println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
+    println!("\n=>> There are {:?} trusted accounts on this profile.", trusted.len());
     thread::sleep(Duration::from_millis(500)); // Allow server to bind
 
     // Connecting to peers
@@ -160,6 +200,6 @@ pub fn turbo(){
     // }
 
     //Starts consensus loop
-    println!("Starting consensus.");
+    println!("=>> Starting Consensus Protocol");
     consensus::consensus_loop(main_stat, tenv_arc, curr_logs);
 }

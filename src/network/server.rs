@@ -12,7 +12,7 @@ pub fn listen(address: String, main_stat: Arc<RwLock<(String, String)>>,
 nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	let add: &str  = &address;
 	let listener = TcpListener::bind(add).unwrap();
-	println!("\nListening started on {}", address);
+	println!("\n=>> Listening started on {}", address);
 
     for stream in listener.incoming() {
 		//Cloning to move into threads
@@ -22,7 +22,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 		let c_logs = curr_logs.clone();
 
     	match stream {
-    		Err(e) => { println!("Error on listening: {}", e) }
+    		Err(e) => { println!("=>> Error on listening: {}", e) }
     		Ok(stream) => {
     			thread::spawn(move || {
 					let _ = stream.set_read_timeout(Some(Duration::new(5,0)));
@@ -46,7 +46,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 			});
 		},
 		Err(_) => {
-			println!("Error connecting to peer: {:?}", address);
+			println!("=>> Error connecting to peer: {:?}", address);
 		}
 	}
 }
@@ -95,12 +95,14 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
                     // Thread sleep. Wait for other threads to catch up.
                     thread::sleep(Duration::from_millis(500));
                 },
-                _        => println!("Error on reading the thread status!"),
+                _        => println!("=>> Error on reading the thread status!"),
             }
         } else if m_status == proposing{
             // Thread broadcasts that it is synced and should be counted toward proposals
             // Requesting Logs
+
 			let thread_status: String = te.t_stat.clone();
+
 			match &thread_status[..]{
 				"BEHIND" =>{
 					// Do nothing. Do not add to the possible logs.
@@ -108,24 +110,27 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 					continue;
 				},
 				"SYNCED" =>{
+
 					// println!("PROPOSING AND SYNCED");
 					// Change thread status from SYNCED to NOTREADY
 					te.t_stat = "NOTREADY".to_string();
+					let larc = logs_arc.clone();
+					let lmap = larc.read().unwrap().clone();
+					send_poss_logs(&mut stream, lmap);
 					let their_logs = request_poss_logs(&mut stream);
 					// Comparing difference in logs.
-					let larc = logs_arc.clone();
 					let diff = compare_logs(their_logs, larc);
-
 					if diff == 0 {
 						te.t_stat = "READY".to_string();
 					}
-
 				},
 				_ 	=>{},
 			}
+
         } else if m_status == committing{
             // Query connected node for current state hashes.
             let node_poss_hash: String = request_poss_shash(&mut stream);
+
             if node_poss_hash == m_state {
                 te.t_stat = "SYNCED".to_string();
                 let mut n_hmap = nodes_stat.write().unwrap();
@@ -134,7 +139,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 				drop(n_hmap);
             }
         } else {
-            println!("Error reading local status: {:?}", &m_status);
+            println!("=>> Error reading local status: {:?}", &m_status);
             break;
         }
         send_update(&mut stream, &conn, m_status);
@@ -150,7 +155,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
         // conn_proto(&mut buf, &mut stream, &conn, main_arc, nodes_arc, current_logs_arc);
     }
 	// Finish and exit
-	println!("Finished reading from stream.");
+	println!("=>> Finished reading from stream.");
 	database::close_db(conn);
 	drop(stream);
 }
