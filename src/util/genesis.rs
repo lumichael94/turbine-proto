@@ -4,7 +4,7 @@ extern crate rustc_serialize;
 extern crate postgres;
 extern crate chrono;
 
-use data::{state, profile, database};
+use data::state;
 
 pub fn get_genesis() -> state::state{
     state::state {

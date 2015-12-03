@@ -25,7 +25,6 @@ pub struct tenv {
 pub fn hs_to_tenv(hs: handshake) -> tenv{
     let node_add = hs.address;
     let node_acc = hs.account;
-
     tenv{
         t_stat:     "LISTEN".to_string(),
         n_stat:     hs.status,

@@ -1,17 +1,17 @@
-use std::os;
-use std::sync;
+// use std::os;
+// use std::sync;
 
-use network::{server, proto};
+// use network::{server, proto};
 use data::{account, state, database, log, tenv};
 use vm::env;
 use std::time::Duration;
 use std::thread;
-use util::{helper, krypto};
+// use util::{helper, krypto};
 use postgres::{Connection, SslMode};
-use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
-use std::sync::mpsc::{self, Sender, Receiver};
+// use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
+// use std::sync::mpsc::{self, Sender, Receiver};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 //====================================================================
 // GENERAL CONSENSUS FUNCTIONS
@@ -20,46 +20,45 @@ use std::sync::{Arc, Mutex, RwLock};
 // Main consensus function
 // pub fn consensus_loop(from_threads: Receiver<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
 pub fn consensus_loop(local_stat: Arc<RwLock<(String, String)>>,
-nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
+tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_accs: Arc<RwLock<HashMap<String, account::account>>>,
     curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
     let conn = database::connect_db();
 
     loop{
-        let local_state = state::get_current_state(&conn).hash;
-        // Change local status to listening.
-        let mut stat = local_stat.write().unwrap();
-        let listen: String = "LISTENING".to_string();
-        *stat = (listen, local_state.to_string());
-        thread::sleep(Duration::from_millis(500));
+        let te = tenv_stat.clone();
+        let marc = local_stat.clone();
+        let curr_state = state::get_current_state(&conn);
+        set_main_stat(marc, "LISTENING".to_string(), curr_state.hash);
+        thread::sleep(Duration::from_millis(250));
 
-        let nde = nodes_stat.clone();
+        let tve = tenv_stat.clone();
+        let size = tve.read().unwrap().len();
+        println!("Size is {:?}", size);
 
-        if !should_propose(nde, &conn){
-            // Sleep briefly and recheck.
-            thread::sleep(Duration::from_millis(500));
-            continue;
-        } else {
+        if should_propose(te){
             // Proposal Loop
             loop {
                 let poss_accs = curr_accs.clone();
-                let ndes = nodes_stat.clone();
+                let ndes = tenv_stat.clone();
                 let poss_logs = curr_logs.clone();
                 let poss_state: state::state = proposing(ndes, poss_accs, poss_logs, &conn);
                 // Change local status to proposing.
-                let propose: String = "PROPOSING".to_string();
-                *stat = (propose, (&poss_state.hash).to_string());
+                let m_arc = local_stat.clone();
+                let curr_state = state::get_current_state(&conn);
+                set_main_stat(m_arc, "PROPOSING".to_string(), curr_state.hash);
 
-                if !should_commit(nodes_stat.clone()){
+                if !should_commit(tenv_stat.clone()){
                     // Sleep briefly, update list, and propose again.
                     thread::sleep(Duration::from_millis(500));
                     continue;
                 } else {
                     // Committing
                     state::save_state(&poss_state, &conn);
-                    let commit: String = "COMMITTED".to_string();
-                    *stat = (commit, (&poss_state.hash).to_string());
+                    let main_arc = local_stat.clone();
+                    let curr_state = state::get_current_state(&conn);
+                    set_main_stat(main_arc, "COMMITTING".to_string(), curr_state.hash);
                     // Waiting for the network to synchronize
-                    while !should_listen(nodes_stat.clone()){
+                    while !should_listen(tenv_stat.clone()){
                         thread::sleep(Duration::from_millis(500));
                     }
                 }
@@ -68,6 +67,12 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_accs: Arc<RwLock<Hash
     }
     // TODO: Makes this reachable.
     database::close_db(conn);
+}
+
+pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, state:String){
+    let marc = local_stat.clone();
+    let mut m_tup = marc.write().unwrap();
+    *m_tup = (status, state);
 }
 
 //====================================================================
@@ -87,41 +92,39 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_accs: Arc<RwLock<Hash
 //TODO: Condense into single functions
 
 //Checking if the local node should listen
-pub fn should_listen(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool{
+pub fn should_listen(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool{
     // Determine majority state, count
-    let arc = nodes_stat.clone();
-    let nodes = arc.read().unwrap();
-    let h_map = nodes.clone();
+    let arc = tenv_stat.clone();
+    let tenvs = arc.read().unwrap();
+    let h_map = (*tenvs).clone();
 
     let mut counter = 0 as i32;
-    let size = nodes.len() as i32;
-
-    for (_, nds) in h_map {
-        if nds.t_stat == "LISTEN"{
+    let size = tenvs.len() as i32;
+    for (_, te) in h_map {
+        if te.t_stat != "SYNCED".to_string(){
             counter+=1;
         }
+        println!("TENV: {:?}", te.t_stat);
    }
     let threshold = 0.7 as i32;
+    if size == 0 {return false};
     let percentage = counter / size;
     if percentage > threshold {return true};
     return false;
 }
 
 // Checking if the local node should propose
-pub fn should_propose(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, conn: &Connection) -> bool{
+pub fn should_propose(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
     // Determine majority state, count
-    let arc = nodes_stat.clone();
-    let nodes = arc.read().unwrap();
-    let h_map = nodes.clone();
+    let arc = tenv_stat.clone();
+    let tenvs = arc.read().unwrap();
+    let h_map = (*tenvs).clone();
 
-    // Retrieve last committed state
-    let local_state = state::get_current_state(&conn).hash;
     let mut counter = 0 as i32;
-    let size = nodes.len() as i32;
+    let size = tenvs.len() as i32;
 
     for (_, te) in h_map {
-        let node_state = te.n_state;
-        if node_state == local_state{
+        if te.t_stat == "SYNCED".to_string(){
             counter+=1;
         }
    }
@@ -130,8 +133,11 @@ pub fn should_propose(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, conn
     // the current state, then local phase = "proposing"
     // let n_nodes = nodes_stat.read().unwrap().len() as i32;
     let threshold = 0.7 as i32;
+    if size == 0 {return false};
     let percentage = counter / size;
-    if percentage > threshold {return true};
+    if percentage > threshold {
+        return true 
+    };
     return false;
 }
 
@@ -152,6 +158,7 @@ pub fn should_commit(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bo
         }
    }
     let threshold = 0.7 as i32;
+    if size == 0 {return false};
     let percentage = counter / size;
     if percentage > threshold {return true};
     return false;

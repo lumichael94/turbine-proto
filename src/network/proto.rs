@@ -39,30 +39,40 @@ pub fn close_connections(from_threads: Receiver<String>, arc: Arc<Mutex<Vec<Send
 // Initiate Handshake. Handshake also updates the node struct.
 pub fn request_handshake(stream: &mut TcpStream, conn: &Connection, main_stat: Arc<RwLock<(String, String)>>,
     nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> Option<tenv::tenv>{
-        // Retrieves information to form handshake struct
-        // let (m_stat, _) = main_stat.read().unwrap().clone();
         // Requesting handshake
+        let _ = stream.write(&[2, 0]);
         let mut buf = [0; 2];
         let _ = stream.read(&mut buf);
         let last_state = state::get_current_state(conn);
+        // let last_hash = last_state.hash.clone();
 
         // If no response, try twice more, then fail.
         for _ in 0..2 {
-            // If a node is sending handshake...
-            if buf[0] == 3 {
+            if buf[0] == 2 { // Node also starts off with request handshake.
+                buf = [0; 2];
+
+                let arc = main_stat.clone();
+                let main_tup = arc.read().unwrap();
+
+                send_handshake(stream, conn, main_tup.0.clone());
+
+                let _ = stream.read(&mut buf); // Reading again for the transmission size
                 let raw_hs = read_stream(stream, buf[1]);
-                let node_hs =  hs::vec_to_hs(&raw_hs);
+
+                // println!("Failing here? {:?}", &raw_hs);
+                let node_hs = hs::vec_to_hs(&raw_hs);
                 let their_nonce: i64 = node_hs.s_nonce;
                 let last_nonce: i64 = last_state.nonce; // Local State nonce
                 let thread_stat : String;
 
-                if last_nonce == their_nonce{            // Local node is in sync
+                if last_nonce == their_nonce{           // Local node is in sync
                     thread_stat = "SYNCED".to_string();
-                } else if last_nonce > their_nonce {     // Local node is more updated
+                } else if last_nonce > their_nonce {    // Local node is more updated
                     thread_stat = "AHEAD".to_string();
                 } else {                                // Local node is behind
                     thread_stat = "BEHIND".to_string();
                 }
+
                 let te = tenv::tenv{
                     t_stat:     thread_stat,
                     n_stat:     node_hs.status,
@@ -98,6 +108,8 @@ pub fn send_handshake(stream: &mut TcpStream, conn: &Connection, main_stat: Stri
     let _ = stream.write(send_buf);
 }
 
+// Listening Protocols
+
 pub fn send_account(stream :&mut TcpStream, address: String, conn: &Connection){
     let acc = account::get_account(&address, conn);
     let buf = &account::acc_to_vec(&acc);
@@ -119,6 +131,44 @@ pub fn send_state(stream :&mut TcpStream, hash: String, conn: &Connection){
     let _ = stream.write(buf);
 }
 
+// Requesting logs for state
+pub fn request_logs(stream: &mut TcpStream, curr_logs: Arc<RwLock<HashMap<String, log::log>>>, hash: String){
+    let raw_shash = hash.as_bytes();
+    let size = raw_shash.len();
+    let _ = stream.write(&[13, size as u8]);    // Identifying opCodes
+    let _ = stream.write(&raw_shash);           // Sends hash of target state
+
+    let mut incoming = [0;2];
+    let _ = stream.read(&mut incoming).unwrap();
+    let raw_logs = read_stream(stream, incoming[1]);
+    let hmap: HashMap<String, log::log> = log::vec_to_hmap(&raw_logs);
+    let log_arc = curr_logs.clone();
+    let mut log_map = log_arc.write().unwrap();
+
+    for (l_hash, l) in hmap{
+        if !log_map.contains_key(&l_hash){
+            let save_l = l.clone();
+            (*log_map).insert(l_hash, save_l);
+        }
+    }
+}
+
+// Requests the next state. Mainly used for the hash.
+pub fn request_state_after(stream: &mut TcpStream, hash: String) -> state::state{
+    let raw_shash = hash.as_bytes();
+    let size = raw_shash.len();
+
+    let _ = stream.write(&[15, size as u8]);
+    let mut incoming = [0;2];
+    let _ = stream.read(&mut incoming).unwrap();
+    let raw_state = read_stream(stream, incoming[1]);
+    state::vec_to_state(raw_state)
+}
+//====================================================================
+// PROPOSING FUNCTIONS
+// Contains functions called during phase: "proposing"
+//====================================================================
+
 // Sending possible state hash
 pub fn send_poss_state_hash(stream: &mut TcpStream, s_hash: String){
     let raw_hash = s_hash.as_bytes();
@@ -128,7 +178,7 @@ pub fn send_poss_state_hash(stream: &mut TcpStream, s_hash: String){
 }
 
 // Requesting possible state hash
-pub fn request_state_hash(stream: &mut TcpStream)-> String{
+pub fn request_poss_shash(stream: &mut TcpStream)-> String{
     // Requesting Possible State Hash
     let _ = stream.write(&[13, 0]);
     let mut incoming = [0;2];
@@ -136,6 +186,7 @@ pub fn request_state_hash(stream: &mut TcpStream)-> String{
     String::from_utf8(read_stream(stream, incoming[1])).unwrap()
 }
 
+// Requesting possible logs to be included in the current state
 pub fn request_poss_logs(stream: &mut TcpStream)->HashMap<String, log::log>{
     // Requesting Logs
     let _ = stream.write(&[4, 0]);
@@ -145,6 +196,7 @@ pub fn request_poss_logs(stream: &mut TcpStream)->HashMap<String, log::log>{
     log::vec_to_hmap(&raw_logs)
 }
 
+// Sends possible logs to be included in the current state
 pub fn send_poss_logs(stream: &mut TcpStream, log_hmap: HashMap<String, log::log>){
     // Sending Logs
     let send_logs = log::hmap_to_vec(log_hmap);
@@ -166,24 +218,15 @@ pub fn exchange_accounts(stream: &mut TcpStream, acc_hmap: HashMap<String, accou
     let size = send_accs.len();
     let _ = stream.write(&[14, size as u8]);
     let _ = stream.write(&send_accs);
-
     account::vec_to_hmap(&raw_accs)
 }
 
-// Compare and trade missing logs with connected node. Return true if synced.
+// Compare and append missing logs from connected node.
 pub fn compare_logs(node_logs: HashMap<String, log::log>, logs_arc: Arc<RwLock<HashMap<String, log::log>>>){
     let our_logs: HashMap<String, log::log> = logs_arc.read().unwrap().clone();
     let my_log = our_logs.clone();
-    let mut their_logs: HashMap<String, log::log> = node_logs;
-    let mut send_logs: HashMap<String, log::log> = HashMap::new();
-    // Iterate through to see if they are missing any logs
-    for (l_hash, l) in our_logs{
-        if !their_logs.contains_key(&l_hash){
-            send_logs.insert(l_hash, l);
-        } else {
-            let _ = their_logs.remove(&l_hash);
-        }
-    }
+    let their_logs: HashMap<String, log::log> = node_logs;
+
     // Iterate and save missing logs
     let mut l_arc = logs_arc.write().unwrap();
     for (l_hash, l) in their_logs{
@@ -225,13 +268,15 @@ accs_arc: Arc<RwLock<HashMap<String, account::account>>>){
     let _ = stream.write(&[15, size as u8]);
     let raw_accs: Vec<u8> = account::hmap_to_vec(send_accs);
     let _ = stream.write(&raw_accs[..]);
+
 }
 
 // Update node struct and thread status.
 // TODO: Remove from node arcs if node is unresponsive.
 pub fn request_update(stream: &mut TcpStream, conn: &Connection)-> tenv::tenv{
+
     let mut buf = [0;2];
-    let _ = stream.write(&[3,0]);    // Requesting Update
+    // let _ = stream.write(&[4,0]);    // Requesting Update
     let _ = stream.read(&mut buf);
     let raw_tenv: Vec<u8> = read_stream(stream, buf[1]);
     let mut te: tenv::tenv = tenv::vec_to_tenv(&raw_tenv);
@@ -248,6 +293,7 @@ pub fn request_update(stream: &mut TcpStream, conn: &Connection)-> tenv::tenv{
     } else {                                    // Local node is behind
         te.t_stat = "BEHIND".to_string();
     }
+
     return te;
 }
 
@@ -263,7 +309,7 @@ pub fn send_update(stream: &mut TcpStream, conn: &Connection, main_stat: String)
     };
 
     let send_buf = &tenv::tenv_to_vec(&te);
-    let _ = stream.write(&[3, send_buf.len() as u8]);
+    let _ = stream.write(&[5, send_buf.len() as u8]);
     let _ = stream.write(send_buf);
 }
 

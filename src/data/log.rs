@@ -97,19 +97,6 @@ pub fn vec_to_log(raw_l: &Vec<u8>) -> log{
     return l;
 }
 
-pub fn log_from_ref(l: &log) -> log{
-    log{
-        hash    :   (*l.hash).to_string(),
-        state   :   (*l.state).to_string(),
-        nonce   :   l.nonce,
-        origin  :   (*l.origin).to_string(),
-        target  :   (*l.target).to_string(),
-        fuel    :   l.fuel,
-        code    :   (*l.code).to_string(),
-        sig     :   l.sig.clone(),
-    }
-}
-
 pub fn hmap_to_vec(hmap: HashMap<String, log>)-> Vec<u8>{
     let mut log_vec: Vec<String> = Vec::new();
     for (_, l) in hmap{

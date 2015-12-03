@@ -123,63 +123,43 @@ pub fn turbo(){
 
     println!("Starting local server...");
 
-    //Creating Server Channel
-    //to_server sends a kill command
-    //to_turbo sends an connnected command
-    let (to_main, from_threads): (Sender<String>, Receiver<String>) = mpsc::channel();
-    // let connected: Arc<Mutex<Vec<Sender<String>>>> = Arc::new(Mutex::new(Vec::new()));
-    // let connected: Arc<RwLock<HashMap<String, Sender<String>>>> = Arc::new(RwLock::new(HashMap::new()));
-    // let serv_arc = connected.clone();
-    // let serv_to_main = to_main.clone();
-
-
     // Initializing Arcs
     // Local Status. String<Status>
     let main_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
     // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
-    let nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>> = Arc::new(RwLock::new(HashMap::new()));
+    let thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Accounts. HashMap<Address, Account>
     let curr_accs: Arc<RwLock<HashMap<String, account::account>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Logs. HashMap<Hash, Log>
     let curr_logs: Arc<RwLock<HashMap<String, log::log>>> = Arc::new(RwLock::new(HashMap::new()));
-
     // Cloning to move into server
     let m_stat = main_stat.clone();
-    let n_stat = nodes_stat.clone();
-    let c_accs = curr_accs.clone();
+    let t_stat = thread_stat.clone();
+    // let c_accs = curr_accs.clone();
     let c_logs = curr_logs.clone();
     //Starting Server
     let _ = thread::spawn(move ||
-        server::listen(local_ip, m_stat, n_stat, c_accs, c_logs)
+        server::listen(local_ip, m_stat, t_stat, c_logs)
     );
 
-    //Waiting for the server to bind.
-    let bound = from_threads.recv().unwrap();
-    if bound == "bound".to_string(){
-        //Connecting to trusted accounts for active profile.
-        println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
+    //Connecting to trusted accounts for active profile.
+    println!("\nThere are {:?} trusted accounts on this profile.", trusted.len());
+    thread::sleep(Duration::from_millis(500)); // Allow server to bind
 
-        let nde_stat = nodes_stat.clone();
-
-        // Connecting to peers
-        for ip in trusted{
-            server::connect(&ip, main_stat.clone(), nodes_stat.clone(), curr_accs.clone(), curr_logs.clone());
-        }
-
-        thread::sleep(Duration::from_millis(500));
-        // let conn_len = connected.read().unwrap().len();
-        let conn_len = nodes_stat.read().unwrap().len();
-        println!("Connected to {:?} peers.", conn_len);
-    } else {
-        println!("Error binding to address.");
-        return;
+    // Connecting to peers
+    for ip in trusted{
+        server::connect(&ip, main_stat.clone(), thread_stat.clone(), curr_logs.clone());
     }
+    let tenv_arc = thread_stat.clone();
 
-    // let check_nde = .clone();
-    for add in nodes_stat.read().unwrap().keys(){
-        println!("Connected to node: {:?}", add);
-    }
+    //TODO: Reimplement
+    // println!("Connected to {:?} peers.", conn_len);
+    //
+    // for add in tenv_arc.read().unwrap().keys(){
+    //     println!("Connected to node: {:?}", add);
+    // }
+
     //Starts consensus loop
     println!("Starting consensus.");
-    consensus::consensus_loop(main_stat, nodes_stat, curr_accs, curr_logs);
+    consensus::consensus_loop(main_stat, tenv_arc, curr_accs, curr_logs);
 }

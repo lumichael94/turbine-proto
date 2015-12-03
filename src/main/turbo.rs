@@ -128,11 +128,12 @@ pub fn read_command() -> bool{
 #[cfg(test)]
 mod test {
   use super::*;
+  use main::commands;
 
   #[test]
   fn test_main() {
       println!("Beginning test...");
       main();
-    //   drop_all();
+    //   commands::drop_all();
   }
 }

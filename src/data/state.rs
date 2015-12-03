@@ -71,8 +71,8 @@ pub fn create_state_table(conn: &Connection){
                     nonce           BIGINT,
                     hash            text,
                     prev_state      text,
-                    log_hash        text,
-                    proof_hash      text,
+                    acc_hash        text,
+                    l_hash          text,
                     fuel_exp        BIGINT
                   )", &[]).unwrap();
 }
@@ -93,7 +93,7 @@ pub fn num_states(conn: &Connection) -> i32{
 }
 
 pub fn get_current_state(conn: &Connection) -> state{
-    let maybe_stmt = conn.prepare("SELECT * FROM state WHERE nonce = (select max from(nonce) from tbl)");
+    let maybe_stmt = conn.prepare("SELECT * FROM state WHERE nonce = (select max(nonce) from state);");
     let stmt = match maybe_stmt{
         Ok(stmt) => stmt,
         Err(err) => panic!("Error preparing statement: {:?}", err)
