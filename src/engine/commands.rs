@@ -5,7 +5,7 @@ use network::{server, proto};
 use data::{account, state, database, log, profile, tenv};
 use util::{helper, genesis, demo};
 use std::sync::RwLock;
-use main::consensus;
+use engine::consensus;
 use std::collections::HashMap;
 use std::time::Duration;
 use postgres::{Connection};

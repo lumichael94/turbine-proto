@@ -1,7 +1,3 @@
-extern crate rand;
-extern crate crypto;
-extern crate rustc_serialize;
-
 use vm::env::env;
 
 pub enum opCode {

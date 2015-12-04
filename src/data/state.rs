@@ -6,15 +6,10 @@ extern crate bincode;
 extern crate postgres;
 extern crate chrono;
 
-use std::os;
-use std::sync;
-use self::rand::{Rng, OsRng};
-use postgres::{Connection, SslMode};
+use postgres::Connection;
 use self::bincode::SizeLimit;
 use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
-use rustc_serialize::json::{self, Json, Encoder};
-use data::log::log;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq)]
 pub struct state {

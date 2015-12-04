@@ -1,15 +1,9 @@
 [package]
-
 name = "turbine"
 version = "0.0.1"
 authors = [ "James Moak <jmoak6@gatech.edu>",
             "Michael Lu <lumichael94@gmail.com>",
             "Paul Park <ppark36@gatech.edu>"]
-
-# [[bin]]
-# name = "turbine"
-# path = "src/main/turbo.rs"
-
 
 [dependencies]
 postgres = "0.10.1"

@@ -15,7 +15,6 @@ use postgres::{Connection, SslMode};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::sync::{Arc, Mutex, RwLock};
 use std::collections::HashMap;
-use main::consensus;
 
 //====================================================================
 // GENERAL PROTOCOL FUNCTIONS

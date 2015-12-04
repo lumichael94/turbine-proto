@@ -1,30 +1,16 @@
-extern crate crypto;
-extern crate rustc_serialize;
-extern crate chrono;
-extern crate regex;
-
 use std::thread;
 use std::time::Duration;
 use std::io::{self, Write};
-// use std::sync::{Arc, Mutex};
-// use network::{server, proto};
+use std::io::BufRead;
 use data::{account, state, database, log, profile};
 use util::helper;
 use postgres::Connection;
-use std::io::BufRead;
-// use std::sync::mpsc::{self, Sender, Receiver};
-use main::commands::*;
+use engine::commands::*;
 
 pub fn init(){
     println!("\n=>> Initiating Turbine.");
     thread::sleep(Duration::from_millis(500));
     check_db();
-}
-
-pub fn main() {
-    init();
-    command_loop();
-    end();
 }
 
 pub fn end(){
@@ -74,7 +60,6 @@ pub fn check_db(){
             if profile::activate(&name, &conn) {break;}
         }
     }
-
     //If there are no states, load Genesis.
     if state::num_states(&conn) == 0{
         println!("=>> No saved states.");
@@ -82,7 +67,6 @@ pub fn check_db(){
     }
     database::close_db(conn);
 }
-
 //Displays commands and flags
 pub fn help(){
     let help_text = "Usage: [COMMAND] [FLAGS] [DATA] \nExample: db -drop all \n\n
@@ -108,26 +92,11 @@ pub fn read_command() -> bool{
         "db"            => database_flags(flags),
         "genesis"       => load_genesis(false),
         "coding"        => coding(),
-        "turbo"         => {
-            thread::spawn(move ||turbo());
-        },
+        "turbo"         => {thread::spawn(move ||turbo());},
         "help"          => help(),
-        "code"          => load_code(),
+        "load"          => load_code(),
         "quit"|"exit"   => return false,
         _               => println!("=>> Did not recognize command, please try again."),
     };
     return true;
-}
-
-#[cfg(test)]
-mod test {
-  use super::*;
-  use main::commands;
-
-  #[test]
-  fn test_main() {
-      println!("Beginning test...");
-      main();
-    //   commands::drop_all();
-  }
 }

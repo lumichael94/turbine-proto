@@ -7,13 +7,10 @@ extern crate postgres;
 extern crate chrono;
 
 use self::secp256k1::*;
-use self::secp256k1::key::*;
-use postgres::{Connection, SslMode};
+use postgres::Connection;
 use self::bincode::SizeLimit;
 use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
-use rustc_serialize::json::{self, Json, Encoder};
-use data::account;
 use std::collections::HashMap;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]

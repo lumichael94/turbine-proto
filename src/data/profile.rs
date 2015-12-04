@@ -19,7 +19,7 @@ pub struct profile{
     pub account     : String,       //Account address
     pub ip          : String,       //Server will bind to this address
     pub secret_key  : Vec<u8>,
-    pub trusted     : String,  //List of trusted accounts
+    pub trusted     : String,       //List of trusted accounts
 }
 
 pub fn drop_profile(name: String, conn: &Connection){
