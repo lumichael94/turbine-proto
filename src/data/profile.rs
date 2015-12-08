@@ -204,7 +204,7 @@ pub fn activate(name: &str, conn: &Connection) -> bool{
 
     let exist = profile_exist(name, conn);
     if !exist{
-        println!("Profile does not exist.");
+        println!("=>> Profile does not exist.");
         return false;
     }
 
@@ -214,7 +214,7 @@ pub fn activate(name: &str, conn: &Connection) -> bool{
             let mut p = get_profile(name, conn);
             p.active = true;
             save_profile(&p, conn);
-            println!("Profile activated.");
+            println!("=>> Profile activated.");
             return true;
         },
         Ok(p) => {
@@ -232,7 +232,6 @@ pub fn activate(name: &str, conn: &Connection) -> bool{
 
         },
     }
-
 }
 
 //Deactive current profile

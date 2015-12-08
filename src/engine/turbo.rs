@@ -1,36 +1,41 @@
 use std::thread;
 use std::time::Duration;
-use std::io::{self, Write};
 use std::io::BufRead;
 use data::{account, state, database, log, profile};
 use util::helper;
 use postgres::Connection;
 use engine::commands::*;
 
+//====================================================================
+// Main Entry Functions
+//====================================================================
+
+// Main Initialization Function
 pub fn init(){
-    println!("\n=>> Initiating Turbine.");
+    println!("\n=>> Welcome to Turbine");
     thread::sleep(Duration::from_millis(500));
     check_db();
 }
 
+// Main Endpoint Function
 pub fn end(){
     let conn = database::connect_db();
     profile::deactivate(&conn);
     database::close_db(conn);
 }
 
+// Command Line Interface.
 pub fn command_loop(){
-    println!("\n=>> Initiating command REPL");
+    println!("=>> Starting Command REPL");
     let mut go: bool = true;
     while go {
-        print!("=>> ");
-        io::stdout().flush().unwrap();
         go = read_command();
     }
 }
 
+// Checks local database tables, initializes profiles.
 pub fn check_db(){
-    println!("=>> Performing database check...");
+    println!("\n=>> Performing database check...");
     println!("=>> Connecting to database...");
     let conn: Connection = database::connect_db();
 
@@ -38,7 +43,7 @@ pub fn check_db(){
     let missing_tables = database::check_tables(&conn);
     if missing_tables.len() != 0{
         for t in missing_tables{
-            println!("=>> Missing table: {:?}. Creating...", t);
+            println!("\n=>> Missing table: {:?}. Creating...", t);
             let _ = match &t[..] {
                 "account"   => account::create_account_table(&conn),
                 "state"     => state::create_state_table(&conn),
@@ -67,26 +72,31 @@ pub fn check_db(){
     }
     database::close_db(conn);
 }
-//Displays commands and flags
+
+// Help command. Displays commands and flags.
 pub fn help(){
-    let help_text = "Usage: [COMMAND] [FLAGS] [DATA] \nExample: db -drop all \n\n
-    Commands \t Options \t Data \t\t Description \n
-    profile \t -n \t\t \t\t Create a new profile.\n
-    db\t\t -r \t\t [table], all \t Removes a table or the entire database.\n
-    genesis\t \t\t \t\t Wipes database and initializes Genesis state \n
-    turbo\t \t\t \t\t Connects to network and starts consensus method\n
-    coding\t \t\t \t\t Write opcodes on the fly.\n";
+    let help_text = "\n\t\t\t\tTurbine\n\nGeneral Usage:\n
+    profile\t-n \t\t \tCreate a new profile.
+    drop\t([table]| all)\t\tRemoves select table or database.
+    genesis\t \t\t \tDrops database. Loads Genesis state.
+    turbo\t-c, -d\t\t\tStarts turbine in connected/detached mode.
+    coding\t \t\t \tWrite opcodes.
+    load\t<fuel>\t\t\tLoads the active account with fuel.
+    connect\t<ip>\t\t\tConnect to an IP address.\n\nRunning Usage:\n
+    account\t\t\t\tShows details of active account.
+    block\t\t\t\tShow details of current block.\n";
+
     println!("{}", help_text);
 }
 
-//Reads and executes a command
+// Reads and executes a command
+// Output: Boolean (Success or Failure when reading command)
 pub fn read_command() -> bool{
     let response: String = helper::read_in();
     let split = response.split(" ");
     let raw_vec = split.collect::<Vec<&str>>();
     let mut flags = helper::vec_slice_to_string(&raw_vec);
     let command: String = flags.remove(0);
-
     let _ = match &command[..]{
         "profile"       => profile_flags(flags),
         "db"            => database_flags(flags),

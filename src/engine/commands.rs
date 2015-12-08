@@ -1,21 +1,20 @@
 use std::{thread, process};
-use std::io::{self, Write};
-use std::sync::{Arc, Mutex};
-use network::{server, proto};
+use std::io::Write;
+use std::sync::Arc;
+use network::server;
 use data::{account, state, database, log, profile, tenv};
 use util::{helper, genesis, demo};
 use std::sync::RwLock;
 use engine::consensus;
 use std::collections::HashMap;
 use std::time::Duration;
-use postgres::{Connection};
 
 //====================================================================
 // COMMAND FUNCTIONS
-// Contains functions called by the command loop.
+// Contains functions called by the CLI.
 //====================================================================
 
-// TODO: Error after drop all and exiting program.
+
 // Drops all database tables
 pub fn drop_all(){
         let conn = database::connect_db();
@@ -27,6 +26,7 @@ pub fn drop_all(){
 }
 
 // Drops database and loads Genesis state.
+// Input    Boolean     Activation flag
 pub fn load_genesis(init: bool){
     // If init is true, it means its a fresh install so there isn't a need for a prompt
     if !init {
@@ -45,7 +45,8 @@ pub fn load_genesis(init: bool){
     println!("=>> Genesis state loaded.");
 }
 
-//Execute db command with flags
+// Execute db command with flags
+// Input    flags   (flags for db command)
 pub fn database_flags(flags: Vec<String>){
     let flag = &flags[0];
     match &flag[..]{
@@ -77,6 +78,7 @@ pub fn database_flags(flags: Vec<String>){
 }
 
 //Execute profile command with flags
+// Input    flags   (flags for profile command)
 pub fn profile_flags(flags: Vec<String>){
     if flags.len() == 0 {
         println!("=>> Profile command requires flags.");
@@ -122,7 +124,7 @@ pub fn load_code(){
     database::close_db(conn);
 }
 
-//Creates a new profile.
+// Creates a new profile.
 pub fn new_profile(){
     let conn = database::connect_db();
     println!("\n=>> Enter the name of new profile:");
@@ -139,21 +141,7 @@ pub fn new_profile(){
     database::close_db(conn);
 }
 
-pub fn coding(){
-    let code: String = helper::read_in();
-    let conn = database::connect_db();
-    let prof = profile::get_active(&conn).unwrap();
-    let acc = account::get_account(&prof.account, &conn);
-    let mut l = demo::get_demo_log("a", 10000);
-    l.state = "".to_string();
-    l.nonce = acc.log_nonce;
-    l.origin = acc.address;
-    l.code = code;
-    log::save_log(l, &conn);
-    database::close_db(conn);
-}
-
-// Main method
+// Main Entry Function
 // Connects to network and starts consensus loop
 pub fn turbo(){
     println!("\n\n=>> Performing network check...");
@@ -194,25 +182,30 @@ pub fn turbo(){
     let _ = thread::spawn(move ||
         server::listen(local_ip, m_stat, t_stat, c_logs)
     );
-
     //Connecting to trusted accounts for active profile.
     println!("\n=>> There are {:?} trusted accounts on this profile.", trusted.len());
     thread::sleep(Duration::from_millis(500)); // Allow server to bind
-
     // Connecting to peers
     for ip in trusted{
         server::connect(&ip, main_stat.clone(), thread_stat.clone(), curr_logs.clone());
     }
     let tenv_arc = thread_stat.clone();
-
-    //TODO: Reimplement
-    // println!("Connected to {:?} peers.", conn_len);
-    //
-    // for add in tenv_arc.read().unwrap().keys(){
-    //     println!("Connected to node: {:?}", add);
-    // }
-
     //Starts consensus loop
     println!("=>> Starting Consensus Protocol");
     consensus::consensus_loop(main_stat, tenv_arc, curr_logs);
+}
+
+// TODO: Experimental Feature
+pub fn coding(){
+    let code: String = helper::read_in();
+    let conn = database::connect_db();
+    let prof = profile::get_active(&conn).unwrap();
+    let acc = account::get_account(&prof.account, &conn);
+    let mut l = demo::get_demo_log("a", 10000);
+    l.state = "".to_string();
+    l.nonce = acc.log_nonce;
+    l.origin = acc.address;
+    l.code = code;
+    log::save_log(l, &conn);
+    database::close_db(conn);
 }

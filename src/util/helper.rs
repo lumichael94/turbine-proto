@@ -31,6 +31,8 @@ pub fn vec_slice_to_string(v: &Vec<&str>) -> Vec<String>{
 
 //Reads and returns user response.
 pub fn read_in() -> String{
+    print!("=>> ");
+    io::stdout().flush().unwrap();
     let stdin = io::stdin();
     let mut response = String::new();
     let _ = stdin.read_line(&mut response);

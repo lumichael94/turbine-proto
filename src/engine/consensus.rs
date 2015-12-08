@@ -1,14 +1,7 @@
-// use std::os;
-// use std::sync;
-
-// use network::{server, proto};
-use data::{account, state, database, log, tenv};
+use data::{state, database, log, tenv};
 use vm::env;
 use std::time::Duration;
 use std::thread;
-// use util::{helper, krypto};
-// use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
-// use std::sync::mpsc::{self, Sender, Receiver};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -17,7 +10,9 @@ use std::sync::{Arc, RwLock};
 //====================================================================
 
 // Main consensus function
-// pub fn consensus_loop(from_threads: Receiver<String>, arc:  Arc<Mutex<HashMap<String, Sender<String>>>>){
+// Input    local_stat      Status of the main thread
+// Input    tenv_stat       Status of the connected threads
+// Input    curr_logs       Collection of the current uncommitted logs
 pub fn consensus_loop(local_stat: Arc<RwLock<(String, String)>>,
 tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
     let conn = database::connect_db();
@@ -65,10 +60,11 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
                 }
         }
     }
-    // TODO: Makes this reachable.
-    // database::close_db(conn);
 }
 
+// Sets the status of the main thread
+// Input    local_stat      Status of the main thread
+// Input    status          Status to be set
 pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, state:String){
     let marc = local_stat.clone();
     let mut m_tup = marc.write().unwrap();
@@ -78,7 +74,6 @@ pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, s
 //====================================================================
 // LOCAL NODE PHASE FUNCTIONS
 //====================================================================
-
 // Cycles through connected nodes to set update local node status: "listening", "proposing", "committed".
 // "listening": Node is accepting all ongoing logs and accounts of a state.
 // "proposing": Node is proposing set of logs and accounts. It will only allow modifications
@@ -88,10 +83,9 @@ pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, s
 // Status only applies if node is working on its most current state. Otherwise, it is perpetually
 // listening.
 
-//** Pre-phase Checking **//
-//TODO: Condense into single functions
-
-//Checking if the local node should listen
+// Checking if the local node should listen
+// Input    tenv_stat       Status of the connected threads
+// Output   Boolean         success/failure
 pub fn should_listen(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool{
     // Determine majority state, count
     let arc = tenv_stat.clone();
@@ -103,7 +97,6 @@ pub fn should_listen(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool
     for (_, te) in h_map {
         if te.t_stat != "SYNCED".to_string(){
             counter+=1;
-
         }
    }
     let threshold = 0.8 as i32;
@@ -114,6 +107,8 @@ pub fn should_listen(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>)-> bool
 }
 
 // Checking if the local node should propose
+// Input    tenv_stat       Status of the connected threads
+// Output   Boolean         success/failure
 pub fn should_propose(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
     // Determine majority state, count
     let arc = tenv_stat.clone();
@@ -141,10 +136,11 @@ pub fn should_propose(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bo
 }
 
 // Checking if the local node should commit the current state
-// Broadcasts state with peers and determine state reward distribution.
-pub fn should_commit(thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
+// Input    tenv_stat       Status of the connected threads
+// Output   Boolean         success/failure
+pub fn should_commit(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
     // Determine majority state, count
-    let arc = thread_stat.clone();
+    let arc = tenv_stat.clone();
     let tenv = arc.read().unwrap();
     let h_map = tenv.clone();
     let mut counter = 0 as i32;
@@ -165,15 +161,15 @@ pub fn should_commit(thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> b
 }
 
 // Checking if the local node should execute the current logs and accounts
+// Input    tenv_stat       Status of the connected threads
+// Output   Boolean         success/failure
 pub fn should_execute(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
     // Determine majority state, count
     let arc = nodes_stat.clone();
     let nodes = arc.read().unwrap();
     let h_map = nodes.clone();
-
     let mut counter = 0 as i32;
     let size = nodes.len() as i32;
-
     for (_, te) in h_map {
         if te.t_stat == "EXECUTE"{
             counter+=1;
