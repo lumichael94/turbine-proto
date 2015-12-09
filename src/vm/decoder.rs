@@ -6,28 +6,28 @@ use vm::opCodes::{opCode, map_to_fuel};
 use vm::opCodes::opCode::*;
 use util::helper;
 
+// Decodes code in string form into VM instruction set
+// Input    code                Raw code string
+// Output   Vec<opCode>         Instruction set (opCodes)
+// Output   Vec<Vec<String>>    Opcode parameters
+// Output   Vec<i64>            Fuel prices
 pub fn decode(code: &Vec<String>) -> (Vec<opCode>, Vec<Vec<String>>, Vec<i64>){
     let mut instr_vec:  Vec<opCode>     = Vec::new();
     let mut param_vec:  Vec<Vec<String>>  = Vec::new();
     let mut fuel_vec:   Vec<i64>        = Vec::new();
-
     for instr in code {
         let it = instr.split(" ");
         let coll: Vec<&str> = it.collect();
-
         //Operation Code
         let op_string: &str = coll[0];
         let op: opCode = map_to_instr(op_string);
-
         //Operation Parameters
         let mut param: Vec<&str> = Vec::new();
         for p in 1..coll.len(){
             param.push(coll[p]);
         }
-
         //Operation Fuel
         let fuel: i64 = map_to_opFuel(op_string);
-
         //Push values in
         instr_vec.push(op);
         param_vec.push(helper::vec_slice_to_string(&param));
@@ -36,6 +36,9 @@ pub fn decode(code: &Vec<String>) -> (Vec<opCode>, Vec<Vec<String>>, Vec<i64>){
     return (instr_vec, param_vec, fuel_vec);
 }
 
+// Mapping from instruction string to operation code
+// Input    instr       Instruction string
+// Output   opCode      Operation code
 pub fn map_to_instr(instr: &str) -> opCode{
     match instr {
         "ADD"   => return ADD,
@@ -51,6 +54,9 @@ pub fn map_to_instr(instr: &str) -> opCode{
     }
 }
 
+// Mapping from operation code to instruction string
+// Input    code        Operation code
+// Output   String      Instruction string
 pub fn map_to_string(code: &opCode) -> String{
     match code {
         &ADD   => return "ADD".to_string(),
@@ -66,6 +72,9 @@ pub fn map_to_string(code: &opCode) -> String{
     }
 }
 
+// Mapping from instruction string to fuel cost
+// Input    instr   Instruction string
+// Output   i64     Fuel cost
 pub fn map_to_opFuel(instr: &str) -> i64 {
     match instr {
         "ADD"   => return map_to_fuel(ADD),

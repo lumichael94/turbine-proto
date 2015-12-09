@@ -17,6 +17,7 @@ use self::secp256k1::key::*;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 
+// Virtual environment struct
 pub struct env {
     pub origin      : account::account,
     pub targets     : Vec<account::account>,
@@ -25,6 +26,9 @@ pub struct env {
 }
 
 // Initializes an env from a log and its traits
+// Input    l       Source log
+// Input    acc     Origin account
+// Output   env     Virtual environment
 pub fn env_from_log(l: log::log, acc: account::account) -> env{
     return env{
         origin:     acc,
@@ -34,6 +38,9 @@ pub fn env_from_log(l: log::log, acc: account::account) -> env{
     }
 }
 
+// Execute all logs and create state
+// Input    logs        Logs to execute
+// Output   state       State created from logs
 pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
     let log_hmap: HashMap<String, log::log> = logs.read().unwrap().clone();
     let conn = database::connect_db();
@@ -45,7 +52,6 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
         l_hash:     String::new(),
         fuel_exp:   0 as i64,
     };
-
     // Adding accounts that were used and storing them.
     let mut accs: Vec<account::account> = Vec::new();
     let mut logs: Vec<log::log> = Vec::new();
@@ -74,7 +80,6 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
         accs.push(orig);
         logs.push(check_log);
     }
-
     // Saving modified accounts and logs to database state
     for acc in accs{
         account::save_account(&acc, &conn);
@@ -86,9 +91,13 @@ pub fn execute_state(logs: Arc<RwLock<HashMap<String, log::log>>>) -> state{
     return s;
 }
 
+// Execute a loaded environment
+// Input    sign        Sign log?
+// Input    e           Loaded virtual environment
+// Input    instr_set   Instruction set to execute
+// Output   String      Final hash of log
 pub fn execute_env(sign: bool, e: &mut env,
     instr_set: &(Vec<opCode>, Vec<Vec<String>>, Vec<i64>)) -> String{
-
     loop {
         let ref instr: opCode       = (instr_set.0)[e.origin.pc as usize];
         let ref param: Vec<String>  = (instr_set.1)[e.origin.pc as usize];
@@ -107,6 +116,10 @@ pub fn execute_env(sign: bool, e: &mut env,
     e.hash.to_string()
 }
 
+// Execute an operation instruction
+// Input    instr       Operation code to execute
+// Input    param       Parameters of the operation code
+// Input    e           Virtual environment
 pub fn execute_instr(instr: &opCode, param: &Vec<String>, e: &mut env){
     match instr {
         &ADD     => {
@@ -140,19 +153,16 @@ pub fn execute_instr(instr: &opCode, param: &Vec<String>, e: &mut env){
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::POP(e, n));
         },
-
         &SEND     => {
             e.hash = krypto::string_hash(&e.hash, "SEND").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::SEND(e, n));
         },
-
         &JUMP     => {
             e.hash = krypto::string_hash(&e.hash, "JUMP").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
             map_to_fn(opCode_param::JUMP(e, n));
         },
-
         &LOAD    =>{
             e.hash = krypto::string_hash(&e.hash, "LOAD").to_string();
             let n: i32 = param[0].to_string().parse::<i32>().unwrap();
@@ -174,12 +184,17 @@ pub fn execute_instr(instr: &opCode, param: &Vec<String>, e: &mut env){
     }
 }
 
+// Create a proof from environment
+// Input    env         Virtual Environment
+// Output   String      Hash of environment
 pub fn new_proof(env: &mut env) -> String{
     let a = krypto::string_hash(&env.hash, &env.origin.address);
     return krypto::string_hash(&a, &(env.env_log.fuel).to_string());
 }
 
-//The sign parameter asks whether or not the local account should sign.
+// Create a log from environment
+// Input    env         Virtual Environment
+// Output   sign        Sign log?
 pub fn log_from_env(mut env: &mut env, sign: bool) -> log::log{
     let l_state:    String  = (*env.origin.state).to_string();
     let l_nonce:    i64     = env.origin.log_nonce;
@@ -194,13 +209,10 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log::log{
     a = krypto::string_hash(&a, &l_target);
     a = krypto::string_int_hash(&a, &l_fuel);
     a = krypto::string_hash(&a, &l_proof);
-
     let l_sig: Vec<u8>; // = (*env.env_log.sig).to_string();
-
     if sign == true{
         let conn = database::connect_db();
         let profile = profile::get_active(&conn).unwrap();
-
         //TODO: Where to increment log nonce?
         let sk: SecretKey = krypto::decode_sk(&profile.secret_key);
         let signed: Signature = krypto::sign_message(l_proof.as_bytes(), &sk).unwrap();
@@ -210,7 +222,6 @@ pub fn log_from_env(mut env: &mut env, sign: bool) -> log::log{
     } else {
         l_sig = Vec::new();
     }
-
     log::log{    hash:       a.to_string(),
             state:      l_state,
             nonce:      l_nonce,

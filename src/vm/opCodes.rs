@@ -1,11 +1,13 @@
 use vm::env::env;
 
+// Enum for operation code
 pub enum opCode {
     ADD, MUL, DIV, MOD, SUB,
     POP, LOAD, PUSH, STOP, ERROR,
     SEND, JUMP,
 }
 
+// Enum for operation function parameters
 pub enum opCode_param<'a> {
     ADD(&'a mut env, i32),
     SUB(&'a mut env, i32),
@@ -21,6 +23,8 @@ pub enum opCode_param<'a> {
     ERROR(&'a mut env),
 }
 
+// Maps Operation code to corresponding function
+// Input    code    Operation code
 pub fn map_to_fn(code: opCode_param) {
     match code {
         opCode_param::ADD(env, n)      => add(env, n),
@@ -29,7 +33,6 @@ pub fn map_to_fn(code: opCode_param) {
         opCode_param::DIV(env, n)      => div(env, n),
         opCode_param::MOD(env, n)      => modulo(env, n),
 
-        //TODO: Change this when you can
         opCode_param::LOAD(env, word)          => load(env, word),
         opCode_param::PUSH(env, n)     => push(env, n),
         opCode_param::POP(env, n)      => pop(env, n),
@@ -68,6 +71,9 @@ pub fn map_to_fn(code: opCode_param) {
 //     println!("ADD: {}", memory.last().unwrap());
 // }
 
+// Operation function for ADD
+// Input    env     Virtual machine environment
+// Input    n       Number of words to add from stack
 fn add(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
         let mut ans = env.origin.memory.pop().unwrap();
@@ -82,6 +88,9 @@ fn add(mut env: &mut env, n: i32){
     }
 }
 
+// Operation function for SUB
+// Input    env     Virtual machine environment
+// Input    n       Number of words to subtract from stack
 fn sub(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SUB){
         env.env_log.fuel -= map_to_fuel(opCode::SUB);
@@ -94,10 +103,11 @@ fn sub(mut env: &mut env, n: i32){
     } else {
         env.origin.pc = -2;
     }
-
-
 }
 
+// Operation function for MUL
+// Input    env     Virtual machine environment
+// Input    n       Number of words to multiply from stack
 fn mul(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MUL){
         env.env_log.fuel -= map_to_fuel(opCode::MUL);
@@ -113,6 +123,9 @@ fn mul(mut env: &mut env, n: i32){
 
 }
 
+// Operation function for DIV
+// Input    env     Virtual machine environment
+// Input    n       Number of words to divide from stack
 fn div(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::DIV){
         env.env_log.fuel -= map_to_fuel(opCode::DIV);
@@ -127,6 +140,9 @@ fn div(mut env: &mut env, n: i32){
     }
 }
 
+// Operation function for MOD
+// Input    env     Virtual machine environment
+// Input    n       Number of words to modulo from stack
 fn modulo(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::MOD){
         env.env_log.fuel -= map_to_fuel(opCode::MOD);
@@ -141,16 +157,23 @@ fn modulo(mut env: &mut env, n: i32){
     }
 }
 
+// TODO: Implement sending fuel to target account.
+// Operation function for SEND
+// Input    env     Virtual machine environment
+// Input    n       Fuel to send
 fn send(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SEND){
         env.env_log.fuel -= map_to_fuel(opCode::SEND);
-        env.env_log.fuel -= n as i64;
+        env.env_log.fuel -= n;
         println!("SEND: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
     }
 }
 
+// Operation function for JUMP
+// Input    env     Virtual machine environment
+// Input    n       Operation number to jump to
 fn jump(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::JUMP){
         env.env_log.fuel -= map_to_fuel(opCode::JUMP);
@@ -161,6 +184,9 @@ fn jump(mut env: &mut env, n: i32){
     }
 }
 
+// Operation function for POP
+// Input    env     Virtual machine environment
+// Input    n       Number of words to pop from stack into memory
 fn pop(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::POP) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::POP);
@@ -173,6 +199,9 @@ fn pop(mut env: &mut env, n: i32){
     println!("POP")
 }
 
+// Operation function for POP
+// Input    env     Virtual machine environment
+// Input    n       Number of words to pop from memory into stack
 fn push(mut env: &mut env, n: i32){
     if env.env_log.fuel > (map_to_fuel(opCode::PUSH) * (n as i64)){
         env.env_log.fuel -= map_to_fuel(opCode::PUSH);
@@ -185,6 +214,9 @@ fn push(mut env: &mut env, n: i32){
     }
 }
 
+// Operation function for LOAD
+// Input    env     Virtual machine environment
+// Input    word    Word to load into stack
 fn load(mut env: &mut env, word: i32){
     if env.env_log.fuel > map_to_fuel(opCode::LOAD){
         env.env_log.fuel -= map_to_fuel(opCode::LOAD);
@@ -195,16 +227,23 @@ fn load(mut env: &mut env, word: i32){
     }
 }
 
+// Operation function for STOP
+// Input    env     Virtual machine environment
 fn stop(mut env: &mut env){
     env.origin.pc = -1;
     println!("STOP");
 }
 
+// Operation function for ERROR
+// Input    env     Virtual machine environment
 fn error(mut env: &mut env){
     env.origin.pc = -2;
     println!("ERROR");
 }
 
+// Maps operation code to fuel
+// Input    code    Operation code
+// Output   i64     Fuel cost
 pub fn map_to_fuel(code: opCode) -> i64{
     match code{
         opCode::ADD => return 1,
