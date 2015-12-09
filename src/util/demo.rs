@@ -6,6 +6,10 @@ extern crate chrono;
 
 use data::log;
 
+// Retrieve preloaded logs for demonstration
+// Input    code    Log identifier (a, b, c)
+// Input    fuel    Fuel of selected log
+// Output   log     Preloaded log
 pub fn get_demo_log(code: &str, fuel: i64)-> log::log{
     let mut l = log::log{
         hash    :   "".to_string(),
@@ -17,7 +21,6 @@ pub fn get_demo_log(code: &str, fuel: i64)-> log::log{
         code    :   "".to_string(),
         sig     :   Vec::new(),
     };
-
     let code_a: String = "LOAD 1,LOAD 2,POP 2,ADD 2,PUSH 1,LOAD 2,LOAD 4,LOAD 6,POP 3,MUL 3,PUSH 1,STOP".to_string();
     // let code_b: String = "LOAD 1,POP 1,PC 1,PC 3,POP 1,PUSH 1,STOP".to_string();
     let code_c: String = "LOAD 2,LOAD 4,LOAD 6,POP 3,MUL 3,PUSH 1,STOP".to_string();

@@ -6,6 +6,8 @@ extern crate chrono;
 
 use data::state;
 
+// Returns Genesis State
+// Output   state       Genesis State
 pub fn get_genesis() -> state::state{
     state::state {
         nonce           :   0,
