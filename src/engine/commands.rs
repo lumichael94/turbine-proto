@@ -14,7 +14,6 @@ use std::time::Duration;
 // Contains functions called by the CLI.
 //====================================================================
 
-
 // Drops all database tables
 pub fn drop_all(){
         let conn = database::connect_db();
@@ -155,7 +154,7 @@ pub fn turbo(){
 
     // Initializing Arcs
     // Local Status. String<Status>
-    let main_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
+    let local_stat: Arc<RwLock<(String, String)>> = Arc::new(RwLock::new((String::new(), String::new())));
     // Connected Nodes and their current status. HashMap<Address, (State, Nonce)>
     let thread_stat: Arc<RwLock<HashMap<String, tenv::tenv>>> = Arc::new(RwLock::new(HashMap::new()));
     // Current Accounts. HashMap<Address, Account>
@@ -175,7 +174,7 @@ pub fn turbo(){
     database::close_db(conn);
 
     // Cloning to move into server
-    let m_stat = main_stat.clone();
+    let m_stat = local_stat.clone();
     let t_stat = thread_stat.clone();
     let c_logs = curr_logs.clone();
     //Starting Server
@@ -187,12 +186,12 @@ pub fn turbo(){
     thread::sleep(Duration::from_millis(500)); // Allow server to bind
     // Connecting to peers
     for ip in trusted{
-        server::connect(&ip, main_stat.clone(), thread_stat.clone(), curr_logs.clone());
+        server::connect(&ip, local_stat.clone(), thread_stat.clone(), curr_logs.clone());
     }
     let tenv_arc = thread_stat.clone();
     //Starts consensus loop
     println!("=>> Starting Consensus Protocol");
-    consensus::consensus_loop(main_stat, tenv_arc, curr_logs);
+    consensus::consensus_loop(local_stat, tenv_arc, curr_logs);
 }
 
 // TODO: Experimental Feature

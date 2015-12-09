@@ -9,26 +9,23 @@ extern crate chrono;
 use super::*;
 use postgres::{Connection, SslMode, error};
 
-//Connect to database.
+// Connect to database.
+// Output   Connection      Database connection.
 pub fn connect_db() -> Connection{
     let conn = Connection::connect("postgresql://postgres:api@localhost", &SslMode::None).unwrap();
     return conn;
 }
 
-pub fn test_connect() -> Result<Connection, error::ConnectError>{
-    let conn = Connection::connect("postgresql://postgres:api@localhost", &SslMode::None);
-    return conn;
-}
-
-
-//Close database connection.
+// Close database connection.
+// Input    Connection      Database connection to be consumed.
 pub fn close_db(conn: Connection){
     let _ = Connection::finish(conn);
 }
 
-//Check tables returns missing tables
+// Check tables returns missing tables
+// Input    Connection      Database connection.
+// Output   Vec<String>     Name of missing tables.
 pub fn check_tables(conn: &Connection) -> Vec<String>{
-    //TODO: This statement may grab unrelated tables from the user's postgresql
     let maybe_stmt = conn.prepare("select * from pg_tables where schemaname='public'");
     let stmt = match maybe_stmt{
         Ok(stmt) => stmt,
@@ -41,17 +38,10 @@ pub fn check_tables(conn: &Connection) -> Vec<String>{
     for row in rows {
         let table_name: String = row.get(1);
         let remove = tables.iter().position(|n| n == &table_name);
-        //TODO: Check if this works if "remove.unwrap()" returns "None"
-        //If fails, then check https://doc.rust-lang.org/std/option/enum.Option.html
         tables.remove(remove.unwrap());
-
     }
-
     return tables;
-
 }
-
-
 
 // #[cfg(test)]
 // mod test {

@@ -7,13 +7,12 @@ extern crate rustc_serialize;
 extern crate bincode;
 
 use self::secp256k1::*;
-use postgres::{Connection, SslMode};
+use postgres::Connection;
 use util::*;
 use self::bincode::SizeLimit;
 use self::bincode::rustc_serialize::{encode, decode};
 use rustc_serialize::{Encodable};
-use rustc_serialize::json::{self, Json, Encoder};
-use data::{state, profile, database};
+use data::{profile, database};
 use std::collections::HashMap;
 
 #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug, Clone)]
@@ -31,6 +30,9 @@ pub struct account{
     pub pc          : i64,
 }
 
+// Drops specified account.
+// Input    address     Address of account to drop
+// Input    conn        Database connection.
 pub fn drop_account(address: String, conn: &Connection){
     conn.execute("DELETE FROM account \
                   WHERE address = $1",
@@ -38,6 +40,9 @@ pub fn drop_account(address: String, conn: &Connection){
                   .unwrap();
 }
 
+// Saves account struct.
+// Input    acc             Account struct to save.
+// Input    conn            Database connection.
 pub fn save_account(acc: &account, conn: &Connection){
     let add: String = (*acc.address).to_string();
     let ip_add: String = (*acc.ip).to_string();
@@ -50,7 +55,6 @@ pub fn save_account(acc: &account, conn: &Connection){
     let ref stack = *acc.stack;
     let ref memory = *acc.memory;
     let pc: i64 = acc.pc;
-
 
     if account_exist(&add, &conn){
         conn.execute("UPDATE account \
@@ -68,6 +72,8 @@ pub fn save_account(acc: &account, conn: &Connection){
     }
 }
 
+// Creates an account table.
+// Input    conn    Database connection.
 pub fn create_account_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS account (
                     address         text primary key,
@@ -84,10 +90,16 @@ pub fn create_account_table(conn: &Connection){
                   )", &[]).unwrap();
 }
 
+// Drops an account table.
+// Input    conn    Database connection.
 pub fn drop_account_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS account", &[]).unwrap();
 }
 
+// Retreives an account.
+// Input    add         Address of account to retrieve.
+// Input    conn        Database connection.
+// Output   account     Retrieved account struct.
 pub fn get_account(add: &str, conn: &Connection) -> account{
     let maybe_stmt = conn.prepare("SELECT * FROM account WHERE address = $1");
     let stmt = match maybe_stmt{
@@ -112,6 +124,10 @@ pub fn get_account(add: &str, conn: &Connection) -> account{
     }
 }
 
+// Checks if an account exists
+// Input    add         Address of account to retrieve
+// Input    conn        Database connection.
+// Output   Boolean     Account exists?
 pub fn account_exist(add: &str, conn: &Connection) -> bool{
     let maybe_stmt = conn.prepare("SELECT * FROM account WHERE address = $1");
     let stmt = match maybe_stmt{
@@ -132,32 +148,42 @@ pub fn account_exist(add: &str, conn: &Connection) -> bool{
 }
 
 // Returns the state nonce of an account
-pub fn get_state_nonce(address: &str, conn: &Connection) -> i64{
-    let acc = get_account(address, conn);
+// Input    add     Address of account to retrieve
+// Input    conn    Database connection.
+pub fn get_state_nonce(add: &str, conn: &Connection) -> i64{
+    let acc = get_account(add, conn);
     return acc.s_nonce;
 }
 
 // Retrieves the active account
+// Input    conn    Database connection.
 pub fn get_active_account(conn: &Connection) -> account {
     let p = profile::get_active(&conn).unwrap();
-    // println!("Got active profile");
     let acc = get_account(&p.account, &conn);
     return acc;
 }
 
+// Converts account struct to byte vector.
+// Input    acc         Account struct to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn acc_to_vec(acc: &account)-> Vec<u8>{
     encode(acc, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to account struct.
+// Input    raw_acc     Byte vector to convert.
+// Output   account     Converted account.
 pub fn vec_to_acc(raw_acc: &Vec<u8>) -> account{
     let acc: account = decode(&raw_acc[..]).unwrap();
     return acc;
 }
 
+// Create a new personal account
+// Input    ip          Local IP address.
+// Input    pk          Private Key.
+// Output   account     Created local account struct.
 pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
     let add = krypto::gen_string(16);
-
-    //TODO: No current state when first initialized
     account {   address:    add,
                 ip:         ip.to_string(),
                 log_nonce:  0 as i64,
@@ -172,13 +198,14 @@ pub fn new_local_account(ip: &str, pk: Vec<u8>) -> account{
             }
 }
 
-// Checks an account
+// Checks an account against local copy.
+// Input    raw_acc     Raw account to be checked.
+// Output   Option      Converted account struct (if valid).
 pub fn check_account(raw_acc: Vec<u8>) -> Option<account>{
     let conn: Connection = database::connect_db();
     let node_acc = vec_to_acc(&raw_acc);
     let node_address = node_acc.address;
     let node_log_n = node_acc.log_nonce;
-
     // If account exists locally, compare local and received accounts
     if account_exist(&node_address, &conn){
         let local_acc = get_account(&node_address, &conn);
@@ -188,15 +215,15 @@ pub fn check_account(raw_acc: Vec<u8>) -> Option<account>{
             return None;
         }
     }
-
-    // TODO: Converting again due to borrowing. Fix
     let return_acc = vec_to_acc(&raw_acc);
     save_account(&return_acc, &conn);
     database::close_db(conn);
     Some(return_acc)
 }
 
-// TODO
+// Converts hashmap of accounts to byte vector.
+// Input    hmap        Hashmap to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn hmap_to_vec(hmap: HashMap<String, account>)-> Vec<u8>{
     let mut acc_vec: Vec<String> = Vec::new();
     for (_, acc) in hmap{
@@ -204,9 +231,12 @@ pub fn hmap_to_vec(hmap: HashMap<String, account>)-> Vec<u8>{
         let str_vec: String = String::from_utf8(byte_vec).unwrap();
         acc_vec.push(str_vec);
     }
-    println!("hmap_to_vec for account");
     encode(&acc_vec, SizeLimit::Infinite).unwrap()
 }
+
+// Converts byte vector to hashmap of accounts.
+// Input    Vec<u8>     Byte vector to convert.
+// Output   HashMap     Converted hashmap of accounts.
 pub fn vec_to_hmap(raw_accs: &Vec<u8>)-> HashMap<String, account>{
     let acc_vec: Vec<String> = decode(&raw_accs[..]).unwrap();
     let mut hmap: HashMap<String, account> = HashMap::new();
@@ -217,9 +247,6 @@ pub fn vec_to_hmap(raw_accs: &Vec<u8>)-> HashMap<String, account>{
         hmap.insert(add, acc);
     }
     return hmap;
-}
-pub fn compare_accounts(their_accs: HashMap<String, account>, our_accs: HashMap<String, account>){
-
 }
 
 //Tests

@@ -25,6 +25,10 @@ pub struct log {
     pub sig:    Vec<u8>,    //  Modify with Electrum style signatures
 }
 
+// Retreives an log.
+// Input    hash    Hash of log to retrieve.
+// Input    conn    Database connection.
+// Output   log     Retrieved log struct.
 pub fn get_log (hash : &str, conn: &Connection) -> log{
     let maybe_stmt = conn.prepare("SELECT * FROM log WHERE hash = $1");
     let stmt = match maybe_stmt{
@@ -32,7 +36,6 @@ pub fn get_log (hash : &str, conn: &Connection) -> log{
         Err(err) => panic!("Error preparing statement: {:?}", err)
     };
     let i: String = hash.to_string();
-
     let rows = stmt.query(&[&i]).unwrap();
     let row = rows.get(0);
 
@@ -48,6 +51,9 @@ pub fn get_log (hash : &str, conn: &Connection) -> log{
     }
 }
 
+// Saves log struct
+// Input    l               Log struct to save.
+// Input    conn            Database connection.
 pub fn save_log (l : log, conn: &Connection){
     let hash: String = (*l.hash).to_string();
     let state: String = (*l.state).to_string();
@@ -57,17 +63,21 @@ pub fn save_log (l : log, conn: &Connection){
     let fuel = &l.fuel;
     let code : String = (*l.code).to_string();
     let sig: Vec<u8> = l.sig;
-
     conn.execute("INSERT INTO log \
                  (hash, state, nonce, origin, target, fuel, code, sig) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
                   &[&hash, &state, &nonce, &origin, &target, &fuel, &code, &sig]).unwrap();
 }
 
+// Drops specified log
+// Input    hash    Hash of log to retrieve.
+// Input    conn        Database connection.
 pub fn remove_log (hash : &str, conn: &Connection){
     conn.execute("DELETE FROM log WHERE hash = $1", &[&(hash.to_string())]).unwrap();
 }
 
+// Creates an log table.
+// Input    conn    Database connection.
 pub fn create_log_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS log (
                   hash      text,
@@ -81,10 +91,14 @@ pub fn create_log_table(conn: &Connection){
                   )", &[]).unwrap();
 }
 
+// Drops an account table.
+// Input    conn    Database connection.
 pub fn drop_log_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS log", &[]).unwrap();
 }
 
+// Retrieve logs without a state.
+// Input    conn    Database connection.
 pub fn get_no_state_logs(conn: &Connection)-> Vec<log>{
     let maybe_stmt = conn.prepare("SELECT * FROM log WHERE state = $1");
     let stmt = match maybe_stmt{
@@ -107,18 +121,26 @@ pub fn get_no_state_logs(conn: &Connection)-> Vec<log>{
         logs.push(l);
     }
     return logs;
-
 }
 
+// Converts log struct to byte vector.
+// Input    l           Log struct to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn log_to_vec(l: &log)-> Vec<u8>{
     encode(l, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to account log.
+// Input    raw_l     Byte vector to convert.
+// Output   log         Converted log.
 pub fn vec_to_log(raw_l: &Vec<u8>) -> log{
     let l: log = decode(&raw_l[..]).unwrap();
     return l;
 }
 
+// Converts hashmap of logs to byte vector.
+// Input    hmap        Hashmap to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn hmap_to_vec(hmap: HashMap<String, log>)-> Vec<u8>{
     let mut log_vec: Vec<String> = Vec::new();
     for (_, l) in hmap{
@@ -129,6 +151,9 @@ pub fn hmap_to_vec(hmap: HashMap<String, log>)-> Vec<u8>{
     encode(&log_vec, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to hashmap of logs.
+// Input    Vec<u8>     Byte vector to convert.
+// Output   HashMap     Converted hashmap of logs.
 pub fn vec_to_hmap(raw_logs: &Vec<u8>)-> HashMap<String, log>{
     let log_vec: Vec<String> = decode(&raw_logs[..]).unwrap();
     let mut hmap: HashMap<String, log> = HashMap::new();

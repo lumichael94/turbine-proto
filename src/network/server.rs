@@ -1,26 +1,27 @@
-use std::net::{TcpStream, TcpListener, SocketAddrV4, Ipv4Addr};
-use std::{thread, str};
+use std::net::{TcpStream, TcpListener};
+use std::thread;
 use std::time::Duration;
 use std::io::{Read, Write};
 use data::{database, tenv, log};
 use network::proto::*;
-use postgres::{Connection, SslMode};
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
-pub fn listen(address: String, main_stat: Arc<RwLock<(String, String)>>,
-nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
+// Starts the listening TCP server
+// Input    local_stat      Status of the main thread
+// Input    tenv_stat       Status of the connected threads
+// Input    curr_logs       Collection of the current uncommitted logs
+pub fn listen(address: String, local_stat: Arc<RwLock<(String, String)>>,
+tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	let add: &str  = &address;
 	let listener = TcpListener::bind(add).unwrap();
 	println!("\n=>> Listening started on {}", address);
-
     for stream in listener.incoming() {
 		//Cloning to move into threads
-		let m_stat = main_stat.clone();
-		let n_stat = nodes_stat.clone();
+		let m_stat = local_stat.clone();
+		let n_stat = tenv_stat.clone();
 		// let c_accs = curr_accs.clone();
 		let c_logs = curr_logs.clone();
-
     	match stream {
     		Err(e) => { println!("=>> Error on listening: {}", e) }
     		Ok(stream) => {
@@ -30,19 +31,20 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
     			});
     		}
     	}
-
 	}
 }
 
 //Connect to IP address.
-pub fn connect(address: &str, main_stat: Arc<RwLock<(String, String)>>,
-nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
-
+// Input    local_stat      Status of the main thread
+// Input    tenv_stat       Status of the connected threads
+// Input    curr_logs       Collection of the current uncommitted logs
+pub fn connect(address: &str, local_stat: Arc<RwLock<(String, String)>>,
+tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
 	let stream_attempt = TcpStream::connect(address);
 	match stream_attempt {
 		Ok(stream) => {
 			thread::spawn(move||{
-				handle(stream, main_stat, nodes_stat, curr_logs);
+				handle(stream, local_stat, tenv_stat, curr_logs);
 			});
 		},
 		Err(_) => {
@@ -51,8 +53,13 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 	}
 }
 
-fn handle(mut stream: TcpStream, main_stat: Arc<RwLock<(String, String)>>,
-nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>) {
+// Main handler for node connections
+// Input    stream          TcpStream with connected node.
+// Input    local_stat      Status of the main thread
+// Input    tenv_stat       Status of the connected threads
+// Input    curr_logs       Collection of the current uncommitted logs
+fn handle(mut stream: TcpStream, local_stat: Arc<RwLock<(String, String)>>,
+tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashMap<String, log::log>>>) {
 	thread::sleep(Duration::from_millis(100));
 	// println!("Connected. Passed to handler");
 	let conn = database::connect_db();
@@ -60,11 +67,9 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
     let listening: String  = "LISTENING".to_string();
     let proposing: String  = "PROPOSING".to_string();
     let committing: String = "COMMITTING".to_string();
-
     // Handshake
-    let hs_mstat = main_stat.clone();
-    let hs_nstat = nodes_stat.clone();
-
+    let hs_mstat = local_stat.clone();
+    let hs_nstat = tenv_stat.clone();
     let attempt = request_handshake(&mut stream, &conn, hs_mstat, hs_nstat);
     let mut te;
     if attempt == None{
@@ -72,14 +77,13 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
     } else {
         te = attempt.unwrap();
     }
-
     // Main handler loop
 	loop {
         // Cloning arcs
-        let main_arc = main_stat.clone();
+        let main_arc = local_stat.clone();
         let logs_arc = curr_logs.clone();
         let marc = main_arc.clone();
-		let (m_status, m_state) = get_main_stat(marc);
+		let (m_status, m_state) = get_local_stat(marc);
         if m_status == listening {
             // Exchange new logs
             let thread_status: String = te.t_stat;
@@ -100,9 +104,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
         } else if m_status == proposing{
             // Thread broadcasts that it is synced and should be counted toward proposals
             // Requesting Logs
-
 			let thread_status: String = te.t_stat.clone();
-
 			match &thread_status[..]{
 				"BEHIND" =>{
 					// Do nothing. Do not add to the possible logs.
@@ -110,7 +112,6 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 					continue;
 				},
 				"SYNCED" =>{
-
 					// println!("PROPOSING AND SYNCED");
 					// Change thread status from SYNCED to NOTREADY
 					te.t_stat = "NOTREADY".to_string();
@@ -126,14 +127,12 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 				},
 				_ 	=>{},
 			}
-
         } else if m_status == committing{
             // Query connected node for current state hashes.
             let node_poss_hash: String = request_poss_shash(&mut stream);
-
             if node_poss_hash == m_state {
                 te.t_stat = "SYNCED".to_string();
-                let mut n_hmap = nodes_stat.write().unwrap();
+                let mut n_hmap = tenv_stat.write().unwrap();
                 let updated_nde = te.clone();
                 (*n_hmap).insert(te.n_add, updated_nde);
 				drop(n_hmap);
@@ -145,7 +144,7 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
         send_update(&mut stream, &conn, m_status);
         te = request_update(&mut stream, &conn);
         let node_add = te.n_add.clone();
-        let tenv_arc = nodes_stat.clone();
+        let tenv_arc = tenv_stat.clone();
         let mut tenv_writer = tenv_arc.write().unwrap();
         (*tenv_writer).insert(node_add, te.clone());
 		drop(tenv_writer);
@@ -160,6 +159,8 @@ nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<Hash
 	drop(stream);
 }
 
+// Pings connected node.
+// Input    stream          TcpStream with connected node.
 pub fn ping(stream: &mut TcpStream)-> bool{
 	let mut inc = [0;2];
 	let _ = stream.write(&[0, 0]);
@@ -176,54 +177,54 @@ pub fn ping(stream: &mut TcpStream)-> bool{
 	return b;
 }
 
-fn conn_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection,
-	main_stat: Arc<RwLock<(String, String)>>, nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>,
-	curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
-	match incoming[0]{
-		0 => {
-			//No Response. Ping, then sleep.
-			let _ = stream.write(&[1,0]);
-			thread::sleep(Duration::from_millis(500));
-		},
-		1 => {
-			println!("Incoming message >> Ping");
-			//Sending Ping back
-			let _ = stream.write(&[1,0]);
-			thread::sleep(Duration::from_millis(500));
-		},
-		2 => {
-            println!("Incoming message >> Requesting Handshake");
-            let stat_arc = main_stat.clone();
-            let stat_tup = stat_arc.read().unwrap();
-            let status = stat_tup.0.clone();
-            send_handshake(stream, conn, status.to_string());
-		},
-		3 => {
-			println!("Incoming message >> Requesting Update");
-            let stat_arc = main_stat.clone();
-            let stat_tup = stat_arc.read().unwrap();
-            let status = stat_tup.0.clone();
-            send_update(&mut stream, conn, status);
-		},
-		4 => {
-			println!("Incoming message >> Requesting Possible Logs");
-            let arc_logs = curr_logs.clone();
-            let logs_map = arc_logs.read().unwrap().clone();
-            send_poss_logs(&mut stream, logs_map);
-		},
-        5 => {
-            println!("Incoming message >> Requesting Possible State Hash");
-            let stat_arc = main_stat.clone();
-            let stat_tup = stat_arc.read().unwrap();
-            let poss_state: String = stat_tup.1.clone();
-            let raw_hash = poss_state.as_bytes();
-            let size = raw_hash.len();
-            let _ = stream.write(&[6, size as u8] );
-            let _ = stream.write(&raw_hash);
-        },
-        6 => {
-
-        }
+// fn conn_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection,
+// 	local_stat: Arc<RwLock<(String, String)>>, tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>,
+// 	curr_logs: Arc<RwLock<HashMap<String, log::log>>>){
+// 	match incoming[0]{
+// 		0 => {
+// 			//No Response. Ping, then sleep.
+// 			let _ = stream.write(&[1,0]);
+// 			thread::sleep(Duration::from_millis(500));
+// 		},
+// 		1 => {
+// 			println!("Incoming message >> Ping");
+// 			//Sending Ping back
+// 			let _ = stream.write(&[1,0]);
+// 			thread::sleep(Duration::from_millis(500));
+// 		},
+// 		2 => {
+//             println!("Incoming message >> Requesting Handshake");
+//             let stat_arc = local_stat.clone();
+//             let stat_tup = stat_arc.read().unwrap();
+//             let status = stat_tup.0.clone();
+//             send_handshake(stream, conn, status.to_string());
+// 		},
+// 		3 => {
+// 			println!("Incoming message >> Requesting Update");
+//             let stat_arc = local_stat.clone();
+//             let stat_tup = stat_arc.read().unwrap();
+//             let status = stat_tup.0.clone();
+//             send_update(&mut stream, conn, status);
+// 		},
+// 		4 => {
+// 			println!("Incoming message >> Requesting Possible Logs");
+//             let arc_logs = curr_logs.clone();
+//             let logs_map = arc_logs.read().unwrap().clone();
+//             send_poss_logs(&mut stream, logs_map);
+// 		},
+//         5 => {
+//             println!("Incoming message >> Requesting Possible State Hash");
+//             let stat_arc = local_stat.clone();
+//             let stat_tup = stat_arc.read().unwrap();
+//             let poss_state: String = stat_tup.1.clone();
+//             let raw_hash = poss_state.as_bytes();
+//             let size = raw_hash.len();
+//             let _ = stream.write(&[6, size as u8] );
+//             let _ = stream.write(&raw_hash);
+//         },
+//         6 => {
+//
+//         }
 
 		// 5 => {
 		// 	println!("Incoming message >> Requesting Logs");
@@ -278,9 +279,9 @@ fn conn_proto(incoming: &[u8], mut stream: &mut TcpStream, conn: &Connection,
         //     println!("Incoming message >> Sending Current Hash.");
         //
         // }
-		_  => println!("matches nothing."),
-	}
-}
+// 		_  => println!("matches nothing."),
+// 	}
+// }
 
 
 // #[cfg(test)]

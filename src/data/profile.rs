@@ -30,7 +30,6 @@ pub fn drop_profile(name: String, conn: &Connection){
 }
 
 pub fn save_profile(loc: &profile, conn: &Connection){
-
     let name: String = (*loc.name).to_string();
     let curr: bool = loc.active;
     let acc: String = (*loc.account).to_string();
@@ -56,6 +55,8 @@ pub fn save_profile(loc: &profile, conn: &Connection){
     }
 }
 
+// Creates an profile table.
+// Input    conn    Database connection.
 pub fn create_profile_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS profile (
                     name            text primary key,
@@ -67,10 +68,16 @@ pub fn create_profile_table(conn: &Connection){
                   )", &[]).unwrap();
 }
 
+// Drops an profile table.
+// Input    conn    Database connection.
 pub fn drop_profile_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS profile", &[]).unwrap();
 }
 
+// Checks if an profile exists
+// Input    name        Name of profile to retrieve
+// Input    conn        Database connection.
+// Output   Boolean     Profile exists?
 pub fn profile_exist(name: &str, conn: &Connection) -> bool{
     let maybe_stmt = conn.prepare("SELECT * FROM profile WHERE name = $1");
     let stmt = match maybe_stmt{
@@ -91,6 +98,8 @@ pub fn profile_exist(name: &str, conn: &Connection) -> bool{
 }
 
 // Returns the number of profile accounts
+// Input    conn        Database connection.
+// Output   i32         Number of saved profiles.
 pub fn num_profile(conn: &Connection) -> i32{
     let maybe_stmt = conn.prepare("SELECT * FROM profile");
     let stmt = match maybe_stmt{
@@ -101,13 +110,16 @@ pub fn num_profile(conn: &Connection) -> i32{
     return rows.len() as i32;
 }
 
+// Retreives a profile.
+// Input    name        Name of profile to retrieve
+// Input    conn        Database connection.
+// Output   profile     Retrieved profile struct.
 pub fn get_profile(name: &str, conn: &Connection) -> profile{
     let maybe_stmt = conn.prepare("SELECT * FROM profile WHERE name = $1");
     let stmt = match maybe_stmt{
         Ok(stmt) => stmt,
         Err(err) => panic!("Error preparing statement: {:?}", err)
     };
-
     let n: String = name.to_string();
     let rows = stmt.query(&[&n]).unwrap();
     let row = rows.get(0);
@@ -122,6 +134,8 @@ pub fn get_profile(name: &str, conn: &Connection) -> profile{
 }
 
 // Retrieves the active profile profile
+// Input    conn        Database connection.
+// Output   Result      Retrieves active profile or error message.
 pub fn get_active(conn: &Connection) -> Result<profile, &str> {
     let maybe_stmt = conn.prepare("SELECT * FROM profile WHERE active = true");
     let stmt = match maybe_stmt{
@@ -149,8 +163,10 @@ pub fn get_active(conn: &Connection) -> Result<profile, &str> {
         },
     }
 }
-
 // Switches active profile.
+// Input    n           Name of profile to activate.
+// Input    conn        Database connection.
+// Output   boolean     Successfully activated?
 pub fn switch_active(n: &str, conn: &Connection) -> bool{
     let possible_active = get_active(conn);
     match possible_active {
@@ -163,7 +179,11 @@ pub fn switch_active(n: &str, conn: &Connection) -> bool{
     }
 }
 
-// Creates a new profile profile and new corresponding account
+// Creates a new profile rofile and new corresponding account
+// Input    n           Name of profile to create.
+// Input    ip          Local IP address.
+// Input    conn        Database connection.
+// Output   profile     Created local profile.
 pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
     let secret_key = krypto::gen_secret_key();
     let public_key = krypto::gen_public_key(&secret_key);
@@ -171,7 +191,6 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
     let sk: Vec<u8> = encode(&secret_key, SizeLimit::Infinite).unwrap();
     let acc = account::new_local_account(ip, pk);
     account::save_account(&acc, conn);
-
     let p = profile {
         name        : n.to_string(),
         active      : false,
@@ -181,33 +200,34 @@ pub fn new_profile(n: &str, ip: &str, conn: &Connection) -> profile{
         trusted     : "".to_string(),
     };
     save_profile(&p, conn);
-
     //Creating a new profile also activates it.
-
     let _ = match get_active(conn){
         Err(_)  => activate(n, conn),
         Ok(_)   => switch_active(n, conn),
     };
-
     return p;
 }
 
+// Retrieve a list of trusted IP addresses under active profile.
+// Input    conn            Database connection.
+// Output   Vec<String>     List of IP addresses
 pub fn trusted_nodes(conn: &Connection) -> Vec<String>{
     let p = get_active(conn).unwrap();
     let raw_trusted: String = p.trusted;
     helper::slice_to_vec(&raw_trusted)
 }
 
-//Activate profile of a given name
+// Activate profile of a given name
+// Input    name        Name of profile to activate.
+// Input    conn        Database connection.
+// Output   boolean     Successfully activated?
 pub fn activate(name: &str, conn: &Connection) -> bool{
     println!("\n=>> Activating profile...");
-
     let exist = profile_exist(name, conn);
     if !exist{
         println!("=>> Profile does not exist.");
         return false;
     }
-
     //Check if there is a profile activated
     match get_active(conn){
         Err(_) => {
@@ -234,7 +254,8 @@ pub fn activate(name: &str, conn: &Connection) -> bool{
     }
 }
 
-//Deactive current profile
+// Deactive active profile
+// Input    conn        Database connection.
 pub fn deactivate(conn: &Connection){
     let mut p = get_active(conn).unwrap();
     p.active = false;

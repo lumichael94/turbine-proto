@@ -22,18 +22,20 @@ pub struct handshake {
     pub s_nonce:    i64,
 }
 
+// Converts handshake struct to byte vector.
+// Input    hs          Handshake struct to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn hs_to_vec(hs: &handshake)-> Vec<u8>{
     encode(hs, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to handshake struct.
+// Input    Vec<u8>     Raw hanndshake to convert.
+// Output   hs          Converted handshake struct.
 pub fn vec_to_hs(raw_hs: &Vec<u8>) -> handshake{
     let hs: handshake = decode(&raw_hs[..]).unwrap();
     return hs;
 }
-
-// pub fn handshake() -> node{
-//
-// }
 
 // pub fn check_handshake(raw_hs: Vec<u8>)-> Option<handshake>{
 //     let conn: Connection = database::connect_db();

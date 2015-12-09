@@ -22,6 +22,9 @@ pub struct tenv {
     pub n_nonce:    i64,        // Node's State Nonce
 }
 
+// Converts handshake struct to thread environment struct.
+// Input    hs          Handshake struct to convert.
+// Output   tenv        Converted tenv struct.
 pub fn hs_to_tenv(hs: handshake) -> tenv{
     let node_add = hs.address;
     let node_acc = hs.account;
@@ -34,15 +37,22 @@ pub fn hs_to_tenv(hs: handshake) -> tenv{
     }
 }
 
+// Converts tenv struct to byte vector.
+// Input    te          Thread environment struct to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn tenv_to_vec(te: &tenv)-> Vec<u8>{
     encode(te, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to tenv struct.
+// Input    raw_tenv    Byte vector to convert.
+// Output   tenv        Converted thread environment struct.
 pub fn vec_to_tenv(raw_tenv: &Vec<u8>)-> tenv{
     let te: tenv = decode(&raw_tenv[..]).unwrap();
     return te;
 }
 
-pub fn node_to_tenv(te: tenv)-> Vec<u8>{
-    encode(&te, SizeLimit::Infinite).unwrap()
-}
+// TODO: Remove
+// pub fn node_to_tenv(te: tenv)-> Vec<u8>{
+//     encode(&te, SizeLimit::Infinite).unwrap()
+// }

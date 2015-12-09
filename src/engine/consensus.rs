@@ -21,7 +21,7 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
             let te = tenv_stat.clone();
             let marc = local_stat.clone();
             let curr_state = state::get_current_state(&conn);
-            set_main_stat(marc, "LISTENING".to_string(), curr_state.hash.clone());
+            set_local_stat(marc, "LISTENING".to_string(), curr_state.hash.clone());
 
             let larc = curr_logs.clone();
             let lmap = (*larc).read().unwrap();
@@ -39,7 +39,7 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
                 // Setting local status to proposing.
                 let m_arc = local_stat.clone();
                 let curr_state = state::get_current_state(&conn);
-                set_main_stat(m_arc, "PROPOSING".to_string(), curr_state.hash);
+                set_local_stat(m_arc, "PROPOSING".to_string(), curr_state.hash);
                 // Proposal Loop
                 loop {
                     let tenvs = tenv_stat.clone();
@@ -51,7 +51,7 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
                         state::save_state(&poss_state, &conn);
 
                         let curr_state = state::get_current_state(&conn);
-                        set_main_stat(main_arc, "COMMITTED".to_string(), curr_state.hash);
+                        set_local_stat(main_arc, "COMMITTED".to_string(), curr_state.hash);
                         // // Waiting for the network to synchronize
                         while !should_listen(tenv_stat.clone()){
                             thread::sleep(Duration::from_millis(500));
@@ -65,7 +65,7 @@ tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>, curr_logs: Arc<RwLock<HashM
 // Sets the status of the main thread
 // Input    local_stat      Status of the main thread
 // Input    status          Status to be set
-pub fn set_main_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, state:String){
+pub fn set_local_stat(local_stat: Arc<RwLock<(String, String)>>, status:String, state:String){
     let marc = local_stat.clone();
     let mut m_tup = marc.write().unwrap();
     *m_tup = (status, state);
@@ -125,7 +125,7 @@ pub fn should_propose(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bo
    }
     // If counter is more than 70% of trusted nodes and node state is equal to
     // the current state, then local phase = "proposing"
-    // let n_nodes = nodes_stat.read().unwrap().len() as i32;
+    // let n_nodes = tenv_stat.read().unwrap().len() as i32;
     let threshold = 0.8 as i32;
     if size == 0 {return false};
     let percentage = counter / size;
@@ -163,9 +163,9 @@ pub fn should_commit(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> boo
 // Checking if the local node should execute the current logs and accounts
 // Input    tenv_stat       Status of the connected threads
 // Output   Boolean         success/failure
-pub fn should_execute(nodes_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
+pub fn should_execute(tenv_stat: Arc<RwLock<HashMap<String, tenv::tenv>>>) -> bool{
     // Determine majority state, count
-    let arc = nodes_stat.clone();
+    let arc = tenv_stat.clone();
     let nodes = arc.read().unwrap();
     let h_map = nodes.clone();
     let mut counter = 0 as i32;

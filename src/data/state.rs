@@ -21,6 +21,9 @@ pub struct state {
     pub fuel_exp        :   i64,
 }
 
+// Saves account state.
+// Input    s               State struct to save.
+// Input    conn            Database connection.
 pub fn save_state(s: &state, conn: &Connection){
     let nonce: i64 =    s.nonce;
     let hash: String =  (*s.hash).to_string();
@@ -35,6 +38,10 @@ pub fn save_state(s: &state, conn: &Connection){
                   &[&nonce, &hash, &prev_state, &acc_hash, &l_hash, &fuel_exp]).unwrap();
 }
 
+// Retreives a state.
+// Input    hash        Hash of state to retrieve.
+// Input    conn        Database connection.
+// Output   state       Retrieved state struct.
 pub fn get_state(hash: &str, conn: &Connection) -> state{
     let maybe_stmt = conn.prepare("SELECT * FROM state WHERE hash = $1");
     let stmt = match maybe_stmt{
@@ -54,6 +61,9 @@ pub fn get_state(hash: &str, conn: &Connection) -> state{
     }
 }
 
+// Drops specified state.
+// Input    hash        Hash of state to drop.
+// Input    conn        Database connection.
 pub fn drop_state(hash: &str, conn: &Connection){
     conn.execute("DELETE FROM state \
                   WHERE hash = $1",
@@ -61,6 +71,8 @@ pub fn drop_state(hash: &str, conn: &Connection){
                   .unwrap();
 }
 
+// Creates a state table.
+// Input    conn    Database connection.
 pub fn create_state_table(conn: &Connection){
     conn.execute("CREATE TABLE IF NOT EXISTS state (
                     nonce           BIGINT,
@@ -72,11 +84,15 @@ pub fn create_state_table(conn: &Connection){
                   )", &[]).unwrap();
 }
 
+// Drop a state table.
+// Input    conn    Database connection.
 pub fn drop_state_table(conn: &Connection){
     conn.execute("DROP TABLE IF EXISTS state", &[]).unwrap();
 }
 
 // Returns the number of states
+// Input    conn    Database connection.
+// Output   i32     Number of saved states.
 pub fn num_states(conn: &Connection) -> i32{
     let maybe_stmt = conn.prepare("SELECT * FROM state");
     let stmt = match maybe_stmt{
@@ -87,16 +103,18 @@ pub fn num_states(conn: &Connection) -> i32{
     return rows.len() as i32;
 }
 
+// TODO: Rename.
+// Return last committed state.
+// Input    conn    Database connection.
+// Output   state   Last committed state.
 pub fn get_current_state(conn: &Connection) -> state{
     let maybe_stmt = conn.prepare("SELECT * FROM state WHERE nonce = (select max(nonce) from state);");
     let stmt = match maybe_stmt{
         Ok(stmt) => stmt,
         Err(err) => panic!("Error preparing statement: {:?}", err)
     };
-
     let rows = stmt.query(&[]).unwrap();
     let row = rows.get(0);
-
     state {
             nonce:      row.get(0),
             hash:       row.get(1),
@@ -107,10 +125,16 @@ pub fn get_current_state(conn: &Connection) -> state{
     }
 }
 
+// Converts state struct to byte vector.
+// Input    s           State struct to convert.
+// Output   Vec<u8>     Converted byte vector.
 pub fn state_to_vec(s: &state)-> Vec<u8>{
     encode(s, SizeLimit::Infinite).unwrap()
 }
 
+// Converts byte vector to state struct.
+// Input    raw_s       Byte vector to convert.
+// Output   state       Converted state.
 pub fn vec_to_state(raw_s: Vec<u8>) -> state{
     let s: state = decode(&raw_s[..]).unwrap();
     return s;
