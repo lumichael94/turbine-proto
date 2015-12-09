@@ -44,33 +44,6 @@ pub fn map_to_fn(code: opCode_param) {
     };
 }
 
-// //Number of params
-// pub fn get_param_len(code: &str) -> i32{
-//     match code {
-//         "ADD"     => return 1,
-//         "MUL"     => return 1,
-//         "DIV"     => return 1,
-//         "MOD"     => return 1,
-//         "SUB"     => return 1,
-//         "POP"     => return 0,
-//         "LOAD"    => return 1,
-//         "PUSH"    => return 1,
-//         "STOP"    => return 0,
-//         "ERROR"   => return 0,
-//         _       => return 0,
-//     };
-// }
-
-
-// fn add(mut stack: &mut Vec<i32>, memory: &mut Vec<i32>, n: i32){
-//     let mut ans = memory.pop().unwrap();
-//     for i in 0..(n-1){
-//         ans += memory.pop().unwrap();
-//     }
-//     memory.push(ans);
-//     println!("ADD: {}", memory.last().unwrap());
-// }
-
 // Operation function for ADD
 // Input    env     Virtual machine environment
 // Input    n       Number of words to add from stack
