@@ -137,7 +137,7 @@ fn modulo(mut env: &mut env, n: i32){
 fn send(mut env: &mut env, n: i32){
     if env.env_log.fuel > map_to_fuel(opCode::SEND){
         env.env_log.fuel -= map_to_fuel(opCode::SEND);
-        env.env_log.fuel -= n;
+        env.env_log.fuel -= n as i64;
         println!("SEND: {}", env.origin.memory.last().unwrap());
     } else {
         env.origin.pc = -2;
